@@ -1,11 +1,23 @@
 import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { invoke } from "@tauri-apps/api/core";
 import { scaffold, pathExists, wipeDir, isProvisioned, markProvisioned } from "@/lab/tauri/workspace";
 import { exec } from "@/lab/tauri/runner";
 import { composeUp, composeDown } from "@/lab/tauri/container";
 import { generateComposeYaml } from "@/lab/compose";
 import { writeFile } from "@/lab/tauri/file";
 import type { ParsedLab, LabLifecycle, ServiceStatus } from "@/types/lab";
+
+type RuntimeCheck =
+  | { readonly kind: "ready"; readonly binary: string; readonly version: string }
+  | { readonly kind: "missing" };
+
+class ContainerMissingError extends Error {
+  constructor() {
+    super("No container runtime found");
+    this.name = "ContainerMissingError";
+  }
+}
 
 // Declarative lifecycle: React Query drives provisioning.
 // The queryFn runs scaffold → setup scripts → services, streaming
@@ -29,6 +41,14 @@ async function provision(
   init: PostProvisionInit,
 ): Promise<true> {
   const { appendLog, setServiceStatus } = callbacks;
+
+  // Pre-flight: verify container runtime before wasting time on scaffold/setup
+  if (lab.services.length > 0) {
+    const runtime = await invoke<RuntimeCheck>("check_container_runtime");
+    if (runtime.kind === "missing") {
+      throw new ContainerMissingError();
+    }
+  }
 
   const scaffoldPath = `${lab.filesPath}/scaffold`;
   const hasScaffold = await pathExists(scaffoldPath);
@@ -152,6 +172,9 @@ export function useLifecycle(
   }, [lab.services.length, composePath]);
 
   if (error) {
+    if (error instanceof ContainerMissingError) {
+      return { kind: "missing_runtime", lab };
+    }
     return {
       kind: "failed",
       lab,

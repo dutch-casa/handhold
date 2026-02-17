@@ -107,6 +107,30 @@ pub async fn detect_container_runtime() -> Result<RuntimeInfo, String> {
     })
 }
 
+/// Pre-flight check: is a container runtime available?
+/// Returns a discriminated union so the frontend can show install instructions
+/// instead of a generic error when no runtime exists.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase", tag = "kind")]
+pub enum RuntimeCheck {
+    Ready { binary: String, version: String },
+    Missing,
+}
+
+#[tauri::command]
+pub async fn check_container_runtime() -> RuntimeCheck {
+    match resolve_binary() {
+        Ok(binary) => {
+            let version = probe_runtime(binary).unwrap_or_default();
+            RuntimeCheck::Ready {
+                binary: binary.to_string(),
+                version,
+            }
+        }
+        Err(_) => RuntimeCheck::Missing,
+    }
+}
+
 /// Start services via compose, streaming health status per service.
 #[tauri::command]
 pub async fn compose_up(

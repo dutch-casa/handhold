@@ -132,6 +132,7 @@ pub fn run() {
             git::git_line_diff_head,
             // Container orchestration
             container::detect_container_runtime,
+            container::check_container_runtime,
             container::compose_up,
             container::compose_down,
             container::container_list,

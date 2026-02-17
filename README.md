@@ -13,32 +13,50 @@ Narrated, animated technical courses that run on your machine.
 
 ---
 
-Handhold is a desktop app for interactive programming courses. Each lesson is a narrated walkthrough where code, diagrams, and data structures animate in sync with spoken audio. Labs give the learner a real editor, real tests, and real services to build against.
+Handhold is a desktop app for interactive programming courses. Each lesson is a narrated walkthrough where code, diagrams, and data structures animate in sync with spoken audio. Labs give you a real editor, real tests, and real services to build against.
+
+## Install
+
+One command. No Rust, no build tools, no dependencies.
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/dutch-casa/handhold/main/scripts/install-handhold.sh | bash
+```
+
+This detects your OS and architecture, downloads the latest release from GitHub, and installs it. macOS gets a `.dmg` mounted to `/Applications`, Linux gets a `.deb` or `.AppImage`.
+
+Windows users: download the `.msi` installer directly from the [releases page](https://github.com/dutch-casa/handhold/releases/latest).
+
+### Container runtime (labs only)
+
+Some labs spin up services like Postgres or Redis. These need [Podman](https://podman.io/docs/installation) or [Docker](https://docs.docker.com/get-docker/). Lessons never require containers.
+
+If you open a lab that needs containers and none are installed, Handhold shows platform-specific install instructions and a retry button. You don't need to figure this out in advance.
+
+---
+
+## Development
+
+Everything below is for contributors building Handhold from source.
 
 Built with [Tauri 2](https://v2.tauri.app/) and [React 19](https://react.dev/).
 
-## Prerequisites
+### Prerequisites
 
-Install these before cloning.
-
-| Dependency | Version | What it does |
+| Dependency | Version | Purpose |
 |---|---|---|
-| [Rust](https://www.rust-lang.org/tools/install) | stable | Compiles the Tauri backend |
-| [Bun](https://bun.sh/) | >= 1.0 | Installs frontend dependencies, runs Vite |
-| [Podman](https://podman.io/docs/installation) or [Docker](https://docs.docker.com/get-docker/) | any | Runs lab services (Postgres, Redis, etc.) |
+| [Rust](https://www.rust-lang.org/tools/install) | stable | Tauri backend |
+| [Bun](https://bun.sh/) | >= 1.0 | Frontend dependencies and Vite |
 | [Tauri CLI](https://v2.tauri.app/start/create-project/) | >= 2.0 | `cargo install tauri-cli --version "^2"` |
+| [Podman](https://podman.io/docs/installation) or [Docker](https://docs.docker.com/get-docker/) | any | Lab services (Postgres, Redis, etc.) |
 
-### Platform-specific dependencies
-
-**macOS**
-
-Xcode Command Line Tools:
+**macOS** -- Xcode Command Line Tools:
 
 ```sh
 xcode-select --install
 ```
 
-**Linux (Debian/Ubuntu)**
+**Linux (Debian/Ubuntu)**:
 
 ```sh
 sudo apt-get install -y \
@@ -54,13 +72,11 @@ sudo apt-get install -y \
   libgtk-3-dev
 ```
 
-See the [Tauri Linux prerequisites](https://v2.tauri.app/start/prerequisites/#linux) for other distros.
+Other distros: see [Tauri Linux prerequisites](https://v2.tauri.app/start/prerequisites/#linux).
 
-**Windows**
+**Windows** -- [WebView2](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) (ships with Windows 11, manual install on Windows 10) and [Visual Studio C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/).
 
-[WebView2](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) (ships with Windows 11, manual install on Windows 10). The [Visual Studio C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) are also required.
-
-## Getting started
+### Setup
 
 ```sh
 git clone https://github.com/dutch-casa/handhold.git
@@ -68,17 +84,17 @@ cd handhold
 bash scripts/install.sh
 ```
 
-The install script checks for prerequisites, installs missing platform dependencies, sets up the Tauri CLI, installs frontend packages, downloads the TTS sidecar binary, and verifies the Rust build. One command, done.
+The install script checks prerequisites, installs frontend packages, downloads the TTS sidecar binary, and verifies the Rust build.
 
-Handhold uses [Kokoro](https://github.com/hexgrad/kokoro) for text-to-speech. The `koko` binary must be built separately and placed in `src-tauri/binaries/koko-<target-triple>`. The install script will tell you if it's missing.
+Handhold uses [Kokoro](https://github.com/hexgrad/kokoro) for text-to-speech. The `koko` binary must be built separately and placed in `src-tauri/binaries/koko-<target-triple>`. The install script tells you if it's missing.
 
-### Development
+### Run
 
 ```sh
 bun tauri dev
 ```
 
-Opens the app with hot reload. Frontend changes apply instantly, Rust changes trigger a recompile.
+Opens the app with hot reload. Frontend changes apply instantly; Rust changes trigger a recompile.
 
 ### Production build
 
@@ -88,7 +104,7 @@ bun tauri build
 
 Outputs a platform-native installer (`.dmg`, `.AppImage`/`.deb`, or `.msi`).
 
-## Project structure
+### Project structure
 
 ```
 handhold/
@@ -114,23 +130,23 @@ handhold/
   .claude/skills/          Course authoring skill (for AI-assisted course creation)
 ```
 
-## Course authoring
+### Course authoring
 
 Courses are markdown files with an embedded DSL for triggers, animations, and visualization blocks. The full reference lives in two places:
 
 - [`docs/authoring-guide.md`](docs/authoring-guide.md) -- quick-start guide
 - [`.claude/skills/handhold-course-authoring/`](.claude/skills/handhold-course-authoring/SKILL.md) -- comprehensive skill for AI-assisted authoring
 
-## Releasing
+### Releasing
 
-Pushing a version tag triggers a cross-platform release build via GitHub Actions:
+Push a version tag to trigger a cross-platform release build:
 
 ```sh
 git tag v0.1.0
 git push origin v0.1.0
 ```
 
-This builds `.dmg` (macOS ARM + Intel), `.AppImage` + `.deb` (Linux), and `.msi` + `.exe` (Windows). Artifacts are uploaded as a draft GitHub Release for review before publishing.
+Builds `.dmg` (macOS ARM + Intel), `.AppImage` + `.deb` (Linux), and `.msi` + `.exe` (Windows). Artifacts upload as a draft GitHub Release.
 
 ## License
 

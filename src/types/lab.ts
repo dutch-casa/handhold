@@ -52,6 +52,11 @@ export type LabFailed = {
   readonly error: string;
 };
 
+export type LabMissingRuntime = {
+  readonly kind: "missing_runtime";
+  readonly lab: ParsedLab;
+};
+
 export type LabTearingDown = {
   readonly kind: "tearing-down";
   readonly lab: ParsedLab;
@@ -63,6 +68,7 @@ export type LabLifecycle =
   | LabProvisioning
   | LabReady
   | LabFailed
+  | LabMissingRuntime
   | LabTearingDown;
 
 // --- File tree: flat entries from Tauri, tree derived by selector ---

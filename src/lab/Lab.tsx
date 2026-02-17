@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { LabLayout } from "@/lab/LabLayout";
 import { ActivityBar } from "@/lab/ActivityBar";
 import { SidebarContent } from "@/lab/SidebarContent";
@@ -12,6 +13,7 @@ import { ShortcutsOverlay } from "@/lab/hotkeys/ShortcutsOverlay";
 import { SaveConfirmDialog } from "@/lab/hotkeys/SaveConfirmDialog";
 import { GoToLineDialog } from "@/lab/GoToLineDialog";
 import { ProvisioningView } from "@/lab/ProvisioningView";
+import { ContainerInstallPrompt } from "@/lab/ContainerInstallPrompt";
 import { useLab } from "@/lab/use-lab";
 import { useLabHotkeys } from "@/lab/hotkeys/use-lab-hotkeys";
 import { useAutoSave } from "@/lab/use-auto-save";
@@ -29,8 +31,15 @@ type LabProps = {
 export function Lab({ manifest, workspacePath, nav }: LabProps) {
   const lab = useLab(manifest, workspacePath);
   useLabHotkeys(lab);
+  const queryClient = useQueryClient();
   const sidebarPanel = useSettingsStore((s) => s.sidebarPanel);
   const sidebarCollapsed = useSettingsStore((s) => s.sidebarCollapsed);
+
+  const retryProvision = useCallback(() => {
+    queryClient.invalidateQueries({
+      queryKey: ["lab-provision", manifest.filesPath, workspacePath],
+    });
+  }, [queryClient, manifest.filesPath, workspacePath]);
 
   // Auto-save when enabled
   useAutoSave({
@@ -75,11 +84,15 @@ export function Lab({ manifest, workspacePath, nav }: LabProps) {
 
   const lifecycle = lab.status.lifecycle;
 
-  // Gate: show provisioning/failed view until lab is ready
+  if (lifecycle.kind === "missing_runtime") {
+    return <ContainerInstallPrompt lab={lifecycle.lab} onRuntimeFound={retryProvision} />;
+  }
+
+  if (lifecycle.kind === "provisioning" || lifecycle.kind === "failed") {
+    return <ProvisioningView state={lifecycle} />;
+  }
+
   if (lifecycle.kind !== "ready") {
-    if (lifecycle.kind === "provisioning" || lifecycle.kind === "failed") {
-      return <ProvisioningView state={lifecycle} />;
-    }
     return null;
   }
 
