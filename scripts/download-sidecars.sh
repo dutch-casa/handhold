@@ -24,7 +24,11 @@ echo ""
 mkdir -p "$BIN_DIR"
 
 # --- Koko (Kokoro TTS compiled binary) ---
-KOKO_BIN="$BIN_DIR/koko-${TARGET_TRIPLE}"
+if [[ "$TARGET_TRIPLE" == *"windows"* ]]; then
+  KOKO_BIN="$BIN_DIR/koko-${TARGET_TRIPLE}.exe"
+else
+  KOKO_BIN="$BIN_DIR/koko-${TARGET_TRIPLE}"
+fi
 
 if [[ -x "$KOKO_BIN" ]]; then
   echo "koko already present, skipping."
@@ -40,6 +44,9 @@ else
   echo "  Build koko locally and copy it to src-tauri/binaries/koko-${TARGET_TRIPLE}"
   echo "  See README.md for instructions."
   echo ""
+  echo "Creating placeholder so the Tauri build script doesn't fail..."
+  touch "$KOKO_BIN"
+  chmod +x "$KOKO_BIN"
 fi
 
 echo ""
