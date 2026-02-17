@@ -1,0 +1,33 @@
+[package]
+name = "handhold"
+version = "0.0.1"
+description = "Interactive course platform"
+authors = ["dutchcaz"]
+edition = "2021"
+default-run = "handhold"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+tauri-plugin-shell = "2"
+dirs = "6"
+portable-pty = "0.9"
+uuid = { version = "1", features = ["v4"] }
+parking_lot = "0.12"
+notify = "7"
+rusqlite = { version = "0.32", features = ["bundled"] }
+reqwest = { version = "0.12", features = ["rustls-tls"], default-features = false }
+serde_yml = "0.0.12"
+sha2 = "0.10"
+regex = "1"
+swc_common = "18"
+swc_ecma_parser = "33"
+swc_ecma_ast = "20"
+swc_ecma_transforms_react = "40"
+swc_ecma_codegen = "23"
+swc_ecma_visit = "20"

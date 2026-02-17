@@ -1,0 +1,408 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/inter";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ── Design tokens ──────────────────────────────────────────────── *
+ * Every number traces back to these primitives.
+ *
+ * Spacing:  4px base × n → 4 8 12 16 20 24 32 40 48
+ * Type:     minor-third scale (1.2) from 11px base
+ *           11 → 13 → 16 → 19 → 23
+ * Motion:   3 tiers — feedback (120ms), context (300ms), scene (500ms)
+ * Radii:    outer = inner + padding (Apple nesting rule)
+ * Elevation: blur = level × 1.5, offset-y = level × 0.5
+ * ────────────────────────────────────────────────────────────────── */
+
+:root {
+    /* ── Color ── */
+    --background: #0a0a0a;
+    --foreground: #f1efe8;
+    --card: #141414;
+    --card-foreground: #f1efe8;
+    --popover: #141414;
+    --popover-foreground: #f1efe8;
+    --primary: oklch(69.4% 0.202 41.8);
+    --primary-foreground: #0a0a0a;
+    --secondary: #1a1a1a;
+    --secondary-foreground: #f1efe8;
+    --muted: #141414;
+    --muted-foreground: #8a8880;
+    --accent: #1a1a1a;
+    --accent-foreground: #f1efe8;
+    --destructive: #f87171;
+    --border: #2a2a2a;
+    --input: #2a2a2a;
+    --ring: oklch(69.4% 0.202 41.8);
+    --chart-1: oklch(69.4% 0.202 41.8);
+    --chart-2: oklch(56.5% 0.196 256.5);
+    --chart-3: #4ade80;
+    --chart-4: #fbbf24;
+    --chart-5: #f87171;
+    --radius: 0.25rem;
+    --sidebar: #0e0e0e;
+    --sidebar-foreground: #f1efe8;
+    --sidebar-primary: oklch(69.4% 0.202 41.8);
+    --sidebar-primary-foreground: #0a0a0a;
+    --sidebar-accent: #1a1a1a;
+    --sidebar-accent-foreground: #f1efe8;
+    --sidebar-border: #2a2a2a;
+    --sidebar-ring: oklch(69.4% 0.202 41.8);
+
+    /* ── Spacing (4px base × n) ── */
+    --sp-1: 4px;
+    --sp-2: 8px;
+    --sp-3: 12px;
+    --sp-4: 16px;
+    --sp-5: 20px;
+    --sp-6: 24px;
+    --sp-8: 32px;
+    --sp-10: 40px;
+    --sp-12: 48px;
+
+    /* ── Typography scale (minor third 1.2) ── */
+    --text-2xs: 10px;
+    --text-xs: 11px;
+    --text-sm: 13px;
+    --text-base: 16px;
+    --text-lg: 19px;
+    --text-xl: 23px;
+
+    /* ── Line heights (font × 1.4–1.5) ── */
+    --leading-tight: 1.25;
+    --leading-normal: 1.4;
+    --leading-relaxed: 1.6;
+
+    /* ── Motion (snapped to 120Hz frames = 8.33ms) ── */
+    --duration-instant: 80ms;
+    --duration-fast: 120ms;
+    --duration-normal: 250ms;
+    --duration-slow: 400ms;
+    --duration-scene: 500ms;
+
+    --ease-out: cubic-bezier(0.33, 1, 0.68, 1);
+    --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+    --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --ease-spring: cubic-bezier(0.22, 1.2, 0.36, 1);
+
+    /* ── Elevation (blur = level × 3, y = level × 1) ── */
+    --shadow-1: 0 1px 3px rgba(0,0,0,0.4);
+    --shadow-2: 0 2px 6px rgba(0,0,0,0.45);
+    --shadow-3: 0 3px 9px rgba(0,0,0,0.5);
+    --shadow-4: 0 4px 12px rgba(0,0,0,0.55);
+
+    /* ── IDE chrome dimensions ── */
+    --activity-bar-w: 48px;
+    --tab-bar-h: 36px;
+    --status-bar-h: 24px;
+    --section-header-h: 28px;
+
+    /* ── Hairline border (retina-aware) ── */
+    --hairline: 1px;
+}
+
+@media only screen and (min-resolution: 192dpi) {
+    :root { --hairline: 0.5px; }
+}
+
+@theme inline {
+    --font-sans: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+
+    /* ── Spacing tokens → Tailwind classes (p-sp-2 = 8px, gap-sp-3 = 12px) ── */
+    --spacing-sp-1: var(--sp-1);
+    --spacing-sp-2: var(--sp-2);
+    --spacing-sp-3: var(--sp-3);
+    --spacing-sp-4: var(--sp-4);
+    --spacing-sp-5: var(--sp-5);
+    --spacing-sp-6: var(--sp-6);
+    --spacing-sp-8: var(--sp-8);
+    --spacing-sp-10: var(--sp-10);
+    --spacing-sp-12: var(--sp-12);
+
+    /* ── Type scale → Tailwind classes (text-ide-xs = 11px) ── */
+    --font-size-ide-2xs: var(--text-2xs);
+    --font-size-ide-xs: var(--text-xs);
+    --font-size-ide-sm: var(--text-sm);
+    --font-size-ide-base: var(--text-base);
+    --font-size-ide-lg: var(--text-lg);
+    --font-size-ide-xl: var(--text-xl);
+
+    /* ── Duration tokens → Tailwind classes (duration-fast = 120ms) ── */
+    --transition-duration-instant: var(--duration-instant);
+    --transition-duration-fast: var(--duration-fast);
+    --transition-duration-normal: var(--duration-normal);
+    --transition-duration-slow: var(--duration-slow);
+    --transition-duration-scene: var(--duration-scene);
+
+    /* ── Easing tokens → Tailwind classes (ease-out-back) ── */
+    --transition-timing-function-out: var(--ease-out);
+    --transition-timing-function-in-out: var(--ease-in-out);
+    --transition-timing-function-out-back: var(--ease-out-back);
+    --transition-timing-function-spring: var(--ease-spring);
+
+    /* ── Shadow tokens → Tailwind classes (shadow-elevation-2) ── */
+    --shadow-elevation-1: var(--shadow-1);
+    --shadow-elevation-2: var(--shadow-2);
+    --shadow-elevation-3: var(--shadow-3);
+    --shadow-elevation-4: var(--shadow-4);
+
+    /* ── Shadcn color mappings ── */
+    --color-sidebar-ring: var(--sidebar-ring);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar: var(--sidebar);
+    --color-chart-5: var(--chart-5);
+    --color-chart-4: var(--chart-4);
+    --color-chart-3: var(--chart-3);
+    --color-chart-2: var(--chart-2);
+    --color-chart-1: var(--chart-1);
+    --color-ring: var(--ring);
+    --color-input: var(--input);
+    --color-border: var(--border);
+    --color-destructive: var(--destructive);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-accent: var(--accent);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-muted: var(--muted);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-secondary: var(--secondary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-primary: var(--primary);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-popover: var(--popover);
+    --color-card-foreground: var(--card-foreground);
+    --color-card: var(--card);
+    --color-foreground: var(--foreground);
+    --color-background: var(--background);
+    --radius-sm: calc(var(--radius) - 1px);
+    --radius-md: var(--radius);
+    --radius-lg: calc(var(--radius) + 2px);
+    --radius-xl: calc(var(--radius) + 3px);
+    --radius-2xl: calc(var(--radius) + 4px);
+    --radius-3xl: calc(var(--radius) + 5px);
+    --radius-4xl: calc(var(--radius) + 6px);
+}
+
+@layer base {
+    * {
+        @apply border-border outline-ring/50;
+    }
+    html, body {
+        @apply font-sans;
+        overscroll-behavior: none;
+        cursor: default;
+    }
+    body {
+        @apply bg-background text-foreground antialiased;
+    }
+
+    /* Kill 300ms tap delay on all interactive elements */
+    button, a, input, select, textarea, [role="button"], [tabindex] {
+        touch-action: manipulation;
+    }
+
+    /* Tabular nums anywhere numbers change dynamically */
+    input[type="number"],
+    [data-slot="status"],
+    .tabular-nums {
+        font-variant-numeric: tabular-nums;
+    }
+
+    /* Reduced motion: collapse all durations */
+    @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+        }
+    }
+}
+
+/* ── IDE chrome utilities ───────────────────────────────────────── *
+ * Semantic classes for the IDE shell. Each encodes its own spacing,
+ * typography, and interaction rules. Components just apply the class. */
+
+@utility ide-section-header {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 6px;
+    height: var(--section-header-h);
+    padding: 0 var(--sp-3);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--sidebar-foreground);
+    @media (hover: hover) and (pointer: fine) {
+        &:hover { background: var(--sidebar-accent); }
+    }
+}
+
+@utility ide-tab-bar {
+    display: flex;
+    align-items: stretch;
+    overflow-x: auto;
+    height: var(--tab-bar-h);
+    border-bottom: var(--hairline) solid var(--border);
+    background: color-mix(in oklch, var(--muted) 30%, transparent);
+}
+
+@utility ide-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 var(--sp-3);
+    font-size: 12px;
+    white-space: nowrap;
+    color: var(--muted-foreground);
+    transition: color var(--duration-fast) var(--ease-out);
+    @media (hover: hover) and (pointer: fine) {
+        &:hover { color: var(--foreground); }
+    }
+    &[data-active="true"] {
+        box-shadow: inset 0 -2px 0 var(--primary);
+        color: var(--foreground);
+    }
+}
+
+@utility ide-tab-close {
+    position: relative;
+    margin-left: 2px;
+    border-radius: var(--sp-1);
+    padding: 2px;
+    opacity: 0;
+    transition: opacity var(--duration-fast) var(--ease-out);
+    /* Expand tap target to 44px via pseudo-element */
+    &::before {
+        content: "";
+        position: absolute;
+        inset: -8px;
+    }
+    @media (hover: hover) and (pointer: fine) {
+        &:hover { background: var(--muted); }
+    }
+}
+@media (hover: hover) and (pointer: fine) {
+    .ide-tab:hover .ide-tab-close { opacity: 1; }
+}
+/* On touch, always show close button */
+@media (hover: none) {
+    .ide-tab-close { opacity: 1; }
+}
+
+@utility ide-status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: var(--status-bar-h);
+    border-top: var(--hairline) solid var(--border);
+    background: color-mix(in oklch, var(--muted) 30%, transparent);
+    padding: 0 var(--sp-3);
+    font-size: var(--text-xs);
+    font-variant-numeric: tabular-nums;
+    color: var(--muted-foreground);
+}
+
+@utility ide-empty-state {
+    display: flex;
+    height: 100%;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-2);
+    font-size: var(--text-sm);
+    color: var(--muted-foreground);
+}
+
+/* Thin scrollbar — small panels only, never page-level */
+@utility ide-scrollbar {
+    &::-webkit-scrollbar { width: 6px; height: 6px; }
+    &::-webkit-scrollbar-track { background: transparent; }
+    &::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    &::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); }
+}
+
+/* ── Motion utilities ───────────────────────────────────────────── *
+ * Atomic enter/exit grammar:
+ *   enter = fade-in + scale(0.96→1) + translateY(8→0)
+ *   exit  = fade-out + translateY(0→-8)                           */
+
+@utility motion-enter {
+    animation: motion-enter-kf var(--duration-normal) var(--ease-out) both;
+}
+
+@utility motion-exit {
+    animation: motion-exit-kf var(--duration-fast) var(--ease-out) both;
+}
+
+@utility motion-fade {
+    animation: motion-fade-kf var(--duration-fast) var(--ease-out) both;
+}
+
+@keyframes motion-enter-kf {
+    from { opacity: 0; transform: scale(0.96) translateY(8px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes motion-exit-kf {
+    from { opacity: 1; transform: translateY(0); }
+    to   { opacity: 0; transform: translateY(-8px); }
+}
+
+@keyframes motion-fade-kf {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+/* ── Interactive utilities ──────────────────────────────────────── */
+
+/* Button press feel: scale(0.97) on active */
+@utility press {
+    &:active { transform: scale(0.97); }
+    transition: transform var(--duration-instant) var(--ease-out);
+}
+
+/* Hover lift: subtle elevation bump (pointer devices only) */
+@utility hover-lift {
+    transition: transform var(--duration-fast) var(--ease-out),
+                box-shadow var(--duration-fast) var(--ease-out);
+    @media (hover: hover) and (pointer: fine) {
+        &:hover {
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-2);
+        }
+    }
+}
+
+/* Focus ring — grey only, per Emil */
+@utility focus-ring {
+    &:focus-visible {
+        outline: 2px solid var(--muted-foreground);
+        outline-offset: 2px;
+    }
+}
+
+/* Git gutter markers — thin colored bars in the CodeMirror gutter */
+.cm-git-gutter { width: 3px; }
+.cm-git-gutter .cm-gutterElement { padding: 0; }
+.cm-git-gutter-added { width: 3px; height: 100%; background: #7ee787; }
+.cm-git-gutter-modified { width: 3px; height: 100%; background: #79c0ff; }
+.cm-git-gutter-deleted { width: 3px; height: 100%; background: #f87171; border-radius: 1px; }
+
+/* Expand tap target to 44px min via pseudo-element overlay */
+@utility tap-target {
+    position: relative;
+    &::after {
+        content: "";
+        position: absolute;
+        inset: -8px;
+    }
+}

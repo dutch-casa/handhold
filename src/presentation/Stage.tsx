@@ -1,0 +1,267 @@
+import { useRef, useLayoutEffect } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import { useCurrentScene, usePrevScene } from "./store";
+import {
+  slotInitial,
+  slotExit,
+  slotTransition,
+  SLOT_ANIMATE,
+  clearInitial,
+  clearExit,
+  clearDuration,
+  CLEAR_ANIMATE,
+} from "./animation-variants";
+import { Code } from "@/code/Code";
+import { Data } from "@/data/Data";
+import { Diagram } from "@/diagram/Diagram";
+import { Math as MathVis } from "@/math/Math";
+import { Chart } from "@/chart/Chart";
+import { Preview } from "@/preview/Preview";
+import type { VisualizationState, SceneState, SlotEnterEffect, SceneAnnotation } from "@/types/lesson";
+import { spacing } from "@/app/theme";
+
+export function Stage() {
+  const scene = useCurrentScene();
+  const prevScene = usePrevScene();
+
+  if (!scene) return null;
+
+  const transition = scene.transition;
+  const epoch = scene.epoch;
+
+  return (
+    <div style={{ padding: `${spacing.lg} ${spacing.xl}` }}>
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={epoch}
+          initial={clearInitial(transition)}
+          animate={CLEAR_ANIMATE}
+          exit={clearExit(transition)}
+          transition={{ duration: clearDuration(transition) }}
+        >
+          <SlotLayer scene={scene} prevScene={prevScene} />
+        </motion.div>
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function SlotLayer({
+  scene,
+  prevScene,
+}: {
+  readonly scene: SceneState;
+  readonly prevScene: SceneState | undefined;
+}) {
+  if (scene.slots.length === 0) return null;
+
+  const isSplit = scene.slots.length > 1;
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: spacing.lg,
+        alignItems: "flex-start",
+      }}
+    >
+      <AnimatePresence mode="popLayout">
+        {scene.slots.map((slot) => {
+          const enter = scene.enterEffects.find(
+            (e) => e.target === slot.name,
+          );
+          const exit = scene.exitEffects.find(
+            (e) => e.target === slot.name,
+          );
+          const isNew = !prevScene?.slots.some(
+            (s) => s.name === slot.name,
+          );
+          const zoomScale =
+            scene.zoom.scale !== 1 &&
+            (scene.zoom.target === "" || scene.zoom.target === slot.name)
+              ? scene.zoom.scale
+              : 1;
+
+          return (
+            <motion.div
+              key={slot.name}
+              layout={zoomScale === 1 ? true : "position"}
+              initial={isNew ? slotInitial(enter) : false}
+              animate={SLOT_ANIMATE}
+              exit={slotExit(exit)}
+              transition={slotTransition(enter)}
+              style={{ flex: isSplit ? "1 1 0%" : "1 1 100%" }}
+            >
+              <ZoomSlot zoomScale={zoomScale}>
+                <Slot
+                  state={slot}
+                  prevState={findPrevSlot(slot.name, prevScene)}
+                  enterEffect={enter}
+                  focus={scene.focus}
+                  flow={scene.flow}
+                  annotations={scene.annotations}
+                />
+              </ZoomSlot>
+            </motion.div>
+          );
+        })}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// CSS approximation of theme spring (stiffness:120, damping:20, mass:1)
+const ZOOM_TRANSITION = "transform 0.5s cubic-bezier(0.25, 0.1, 0.25, 1)";
+
+function ZoomSlot({
+  zoomScale,
+  children,
+}: {
+  readonly zoomScale: number;
+  readonly children: React.ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const prevScale = useRef(1);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const isZoomingIn = zoomScale > 1 && prevScale.current === 1;
+    prevScale.current = zoomScale;
+
+    if (!isZoomingIn) return;
+
+    const focused = el.querySelectorAll<HTMLElement>("[data-focused]");
+    if (focused.length === 0) return;
+
+    const containerRect = el.getBoundingClientRect();
+    if (containerRect.height === 0 || containerRect.width === 0) return;
+
+    let sumX = 0;
+    let sumY = 0;
+    let count = 0;
+
+    for (const f of focused) {
+      const rect = f.getBoundingClientRect();
+      sumY += rect.top + rect.height / 2;
+
+      // Full-width elements (code lines): measure actual text content, skip gutter + annotations
+      // Positioned elements (SVG nodes): use element's own center
+      const isFullWidth = rect.width / containerRect.width > 0.9;
+      const contentChild = isFullWidth ? f.children[1] : undefined;
+      if (contentChild) {
+        const range = document.createRange();
+        range.selectNodeContents(contentChild);
+        const textRect = range.getBoundingClientRect();
+        range.detach();
+        sumX += textRect.width > 0
+          ? textRect.left + textRect.width / 2
+          : rect.left + rect.width / 2;
+      } else {
+        sumX += rect.left + rect.width / 2;
+      }
+
+      count++;
+    }
+
+    const avgX = sumX / count;
+    const avgY = sumY / count;
+    const relX = avgX - containerRect.left;
+    const relY = avgY - containerRect.top;
+    const xPct = Math.min(90, Math.max(10, (relX / containerRect.width) * 100));
+    const yPct = Math.min(90, Math.max(10, (relY / containerRect.height) * 100));
+
+    el.style.transformOrigin = `${xPct.toFixed(1)}% ${yPct.toFixed(1)}%`;
+  }, [zoomScale]);
+
+  return (
+    <div
+      ref={ref}
+      style={{
+        transform: `scale(${zoomScale})`,
+        transition: ZOOM_TRANSITION,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function findPrevSlot(
+  name: string,
+  prevScene: SceneState | undefined,
+): VisualizationState | undefined {
+  if (!prevScene) return undefined;
+  return prevScene.slots.find((s) => s.name === name);
+}
+
+function Slot({
+  state,
+  prevState,
+  enterEffect,
+  focus,
+  flow,
+  annotations,
+}: {
+  readonly state: VisualizationState;
+  readonly prevState: VisualizationState | undefined;
+  readonly enterEffect: SlotEnterEffect | undefined;
+  readonly focus: string;
+  readonly flow: string;
+  readonly annotations: readonly SceneAnnotation[];
+}) {
+  switch (state.kind) {
+    case "code":
+      return (
+        <Code
+          state={state}
+          prevState={prevState?.kind === "code" ? prevState : undefined}
+          enterEffect={enterEffect}
+          focus={focus}
+          annotations={annotations}
+        />
+      );
+    case "data":
+      return (
+        <Data
+          state={state}
+          prevState={prevState?.kind === "data" ? prevState : undefined}
+          focus={focus}
+          flow={flow}
+          annotations={annotations}
+        />
+      );
+    case "diagram":
+      return (
+        <Diagram
+          state={state}
+          prevState={prevState?.kind === "diagram" ? prevState : undefined}
+          focus={focus}
+          flow={flow}
+          annotations={annotations}
+        />
+      );
+    case "math":
+      return (
+        <MathVis
+          state={state}
+          focus={focus}
+        />
+      );
+    case "chart":
+      return (
+        <Chart
+          state={state}
+          focus={focus}
+        />
+      );
+    case "preview":
+      return (
+        <Preview
+          state={state}
+          prevState={prevState?.kind === "preview" ? prevState : undefined}
+        />
+      );
+  }
+}
