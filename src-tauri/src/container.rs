@@ -3,7 +3,6 @@ use serde::Serialize;
 use std::collections::HashSet;
 use std::io::{BufRead, BufReader};
 use std::process::{Command, Stdio};
-use std::sync::OnceLock;
 use tauri::ipc::Channel;
 use tauri::State;
 
@@ -18,17 +17,49 @@ impl ActiveComposes {
         let paths: Vec<String> = self.0.lock().drain().collect();
         let Ok(binary) = resolve_binary() else { return };
         for path in &paths {
-            let _ = Command::new(binary)
+            let _ = Command::new(&binary)
                 .args(["compose", "-f", path, "down"])
                 .output();
         }
     }
 }
 
-// Cached runtime binary path — detected once per process lifetime
-fn cached_binary() -> &'static OnceLock<String> {
-    static BINARY: OnceLock<String> = OnceLock::new();
-    &BINARY
+// Cached full path to the container runtime binary.
+// Mutex instead of OnceLock so "Check again" can re-probe after the user
+// installs a runtime without restarting the app.
+static CACHED_BINARY: Mutex<Option<String>> = Mutex::new(None);
+
+/// Well-known install locations per platform. macOS .app bundles and Windows
+/// .msi installs don't inherit the user's shell PATH.
+fn search_dirs() -> Vec<String> {
+    let mut dirs = Vec::new();
+
+    if cfg!(target_os = "macos") {
+        dirs.extend([
+            "/opt/homebrew/bin".to_string(),
+            "/usr/local/bin".to_string(),
+        ]);
+    } else if cfg!(target_os = "linux") {
+        dirs.extend([
+            "/usr/bin".to_string(),
+            "/usr/local/bin".to_string(),
+        ]);
+    } else if cfg!(target_os = "windows") {
+        // Docker Desktop
+        if let Ok(pf) = std::env::var("ProgramFiles") {
+            dirs.push(format!("{pf}\\Docker\\Docker\\resources\\bin"));
+        }
+        // Podman Desktop
+        if let Ok(pf) = std::env::var("ProgramFiles") {
+            dirs.push(format!("{pf}\\RedHat\\Podman"));
+        }
+        // User-level installs via winget/scoop
+        if let Ok(local) = std::env::var("LOCALAPPDATA") {
+            dirs.push(format!("{local}\\Microsoft\\WinGet\\Packages"));
+        }
+    }
+
+    dirs
 }
 
 #[derive(Clone, Serialize)]
@@ -67,8 +98,16 @@ pub enum LogEvent {
     Error { message: String },
 }
 
-/// Try a binary, return its version string if it exists.
-fn probe_runtime(binary: &str) -> Option<String> {
+/// Pre-flight check result — discriminated union for the frontend.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase", tag = "kind")]
+pub enum RuntimeCheck {
+    Ready { binary: String, version: String },
+    Missing,
+}
+
+/// Run a binary with --version, return the output if it succeeds.
+fn probe_version(binary: &str) -> Option<String> {
     Command::new(binary)
         .arg("--version")
         .output()
@@ -77,58 +116,91 @@ fn probe_runtime(binary: &str) -> Option<String> {
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
 }
 
-/// Resolve the container runtime binary, caching the result.
-pub(crate) fn resolve_binary() -> Result<&'static str, String> {
-    let binary = cached_binary().get_or_init(|| {
-        // Prefer podman (daemonless), fall back to docker
-        if probe_runtime("podman").is_some() {
-            "podman".to_string()
-        } else if probe_runtime("docker").is_some() {
-            "docker".to_string()
-        } else {
-            String::new()
-        }
-    });
+/// Find a container runtime by name. Tries PATH first, then well-known
+/// absolute paths for production builds where PATH is restricted.
+fn find_binary(name: &str) -> Option<(String, String)> {
+    let exe_name = if cfg!(windows) {
+        format!("{name}.exe")
+    } else {
+        name.to_string()
+    };
 
-    if binary.is_empty() {
-        return Err("No container runtime found. Install Podman: brew install podman".to_string());
+    if let Some(version) = probe_version(&exe_name) {
+        return Some((exe_name, version));
     }
-    Ok(binary.as_str())
+    for dir in search_dirs() {
+        let sep = if cfg!(windows) { "\\" } else { "/" };
+        let candidate = format!("{dir}{sep}{exe_name}");
+        if let Some(version) = probe_version(&candidate) {
+            return Some((candidate, version));
+        }
+    }
+    None
+}
+
+/// Fresh probe: check podman then docker. Returns (full_path, version).
+fn detect_binary() -> Option<(String, String)> {
+    find_binary("podman").or_else(|| find_binary("docker"))
+}
+
+/// Resolve the container runtime, using the cache if available.
+/// Returns the full path to the binary (e.g. "/opt/homebrew/bin/podman").
+pub(crate) fn resolve_binary() -> Result<String, String> {
+    let mut guard = CACHED_BINARY.lock();
+    if let Some(ref path) = *guard {
+        return Ok(path.clone());
+    }
+    let (path, _) = detect_binary()
+        .ok_or_else(|| "No container runtime found".to_string())?;
+    *guard = Some(path.clone());
+    Ok(path)
+}
+
+/// Fresh probe that bypasses and updates the cache.
+/// Used by the "Check again" button after the user installs a runtime.
+fn refresh_binary() -> RuntimeCheck {
+    let mut guard = CACHED_BINARY.lock();
+    match detect_binary() {
+        Some((path, version)) => {
+            let short_name = if path.contains("podman") {
+                "podman"
+            } else {
+                "docker"
+            };
+            *guard = Some(path);
+            RuntimeCheck::Ready {
+                binary: short_name.to_string(),
+                version,
+            }
+        }
+        None => {
+            *guard = None;
+            RuntimeCheck::Missing
+        }
+    }
 }
 
 /// Detect which container runtime is available.
 #[tauri::command]
 pub async fn detect_container_runtime() -> Result<RuntimeInfo, String> {
-    let binary = resolve_binary()?;
-    let version = probe_runtime(binary).unwrap_or_default();
+    let path = resolve_binary()?;
+    let version = probe_version(&path).unwrap_or_default();
+    let short_name = if path.contains("podman") {
+        "podman"
+    } else {
+        "docker"
+    };
     Ok(RuntimeInfo {
-        binary: binary.to_string(),
+        binary: short_name.to_string(),
         version,
     })
 }
 
-/// Pre-flight check: is a container runtime available?
-/// Returns a discriminated union so the frontend can show install instructions
-/// instead of a generic error when no runtime exists.
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase", tag = "kind")]
-pub enum RuntimeCheck {
-    Ready { binary: String, version: String },
-    Missing,
-}
-
+/// Pre-flight check called by the frontend. Always does a fresh probe
+/// so "Check again" works after the user installs a runtime.
 #[tauri::command]
 pub async fn check_container_runtime() -> RuntimeCheck {
-    match resolve_binary() {
-        Ok(binary) => {
-            let version = probe_runtime(binary).unwrap_or_default();
-            RuntimeCheck::Ready {
-                binary: binary.to_string(),
-                version,
-            }
-        }
-        Err(_) => RuntimeCheck::Missing,
-    }
+    refresh_binary()
 }
 
 /// Start services via compose, streaming health status per service.
@@ -140,8 +212,7 @@ pub async fn compose_up(
 ) -> Result<(), String> {
     let binary = resolve_binary()?;
 
-    // Bring up all services in detached mode
-    let up = Command::new(binary)
+    let up = Command::new(&binary)
         .args([
             "compose",
             "-f",
@@ -169,7 +240,7 @@ pub async fn compose_up(
     for _ in 0..HEALTH_POLL_ATTEMPTS {
         std::thread::sleep(std::time::Duration::from_secs(HEALTH_POLL_INTERVAL_SECS));
 
-        let ps = Command::new(binary)
+        let ps = Command::new(&binary)
             .args(["compose", "-f", &compose_path, "ps", "--format", "json"])
             .output()
             .map_err(|e| format!("compose ps failed: {e}"))?;
@@ -226,7 +297,7 @@ pub async fn compose_down(
         args.push("-v");
     }
 
-    let output = Command::new(binary)
+    let output = Command::new(&binary)
         .args(&args)
         .output()
         .map_err(|e| format!("compose down failed: {e}"))?;
@@ -245,7 +316,7 @@ pub async fn compose_down(
 pub async fn container_list(compose_path: String) -> Result<Vec<ContainerInfo>, String> {
     let binary = resolve_binary()?;
 
-    let output = Command::new(binary)
+    let output = Command::new(&binary)
         .args(["compose", "-f", &compose_path, "ps", "--format", "json"])
         .output()
         .map_err(|e| format!("container list failed: {e}"))?;
@@ -262,7 +333,7 @@ pub async fn container_logs(
 ) -> Result<(), String> {
     let binary = resolve_binary()?;
 
-    let mut child = Command::new(binary)
+    let mut child = Command::new(&binary)
         .args(["logs", "-f", "--tail", "500", &container_name])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -290,7 +361,6 @@ pub async fn container_logs(
         });
     }
 
-    // Merge stderr into the same stream
     if let Some(stderr) = child.stderr.take() {
         let ch = on_log.clone();
         std::thread::spawn(move || {
@@ -319,7 +389,7 @@ pub async fn container_logs(
 pub async fn container_action(container_name: String, action: String) -> Result<(), String> {
     let binary = resolve_binary()?;
 
-    let output = Command::new(binary)
+    let output = Command::new(&binary)
         .args([&action, &container_name])
         .output()
         .map_err(|e| format!("{action} failed: {e}"))?;
