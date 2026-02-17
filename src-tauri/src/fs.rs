@@ -1,7 +1,7 @@
 use serde::Serialize;
+use std::ffi::OsStr;
 use std::fs;
 use std::path::Path;
-use std::ffi::OsStr;
 
 #[derive(Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -99,7 +99,9 @@ pub async fn copy_scaffold(source_dir: String, target_dir: String) -> Result<(),
 }
 
 fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
-    for entry in fs::read_dir(src).map_err(|e| format!("Failed to read dir {}: {e}", src.display()))? {
+    for entry in
+        fs::read_dir(src).map_err(|e| format!("Failed to read dir {}: {e}", src.display()))?
+    {
         let entry = entry.map_err(|e| format!("Failed to read entry: {e}"))?;
         let src_path = entry.path();
         let dst_path = dst.join(entry.file_name());
@@ -134,8 +136,15 @@ pub async fn read_dir_recursive(path: String) -> Result<Vec<FsEntry>, String> {
 }
 
 const IGNORED_DIRS: &[&str] = &[
-    "node_modules", "dist", "build", "target", ".next",
-    "__pycache__", ".cache", "coverage", ".turbo",
+    "node_modules",
+    "dist",
+    "build",
+    "target",
+    ".next",
+    "__pycache__",
+    ".cache",
+    "coverage",
+    ".turbo",
 ];
 
 fn collect_entries(dir: &Path, entries: &mut Vec<FsEntry>) -> Result<(), String> {
@@ -145,10 +154,7 @@ fn collect_entries(dir: &Path, entries: &mut Vec<FsEntry>) -> Result<(), String>
     for entry in read_dir {
         let entry = entry.map_err(|e| format!("Failed to read entry: {e}"))?;
         let path = entry.path();
-        let name = entry
-            .file_name()
-            .to_string_lossy()
-            .to_string();
+        let name = entry.file_name().to_string_lossy().to_string();
 
         // Skip hidden files and directories
         if name.starts_with('.') {

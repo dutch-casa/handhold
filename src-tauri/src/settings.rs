@@ -106,8 +106,7 @@ pub async fn load_settings() -> Result<AppSettings, String> {
         return Ok(AppSettings::default());
     }
 
-    let content =
-        fs::read_to_string(&path).map_err(|e| format!("Failed to read settings: {e}"))?;
+    let content = fs::read_to_string(&path).map_err(|e| format!("Failed to read settings: {e}"))?;
     serde_json::from_str(&content).map_err(|e| format!("Failed to parse settings: {e}"))
 }
 
@@ -115,11 +114,10 @@ pub async fn load_settings() -> Result<AppSettings, String> {
 pub async fn save_settings(settings: AppSettings) -> Result<(), String> {
     let path = settings_path();
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|e| format!("Failed to create settings dir: {e}"))?;
+        fs::create_dir_all(parent).map_err(|e| format!("Failed to create settings dir: {e}"))?;
     }
 
-    let content =
-        serde_json::to_string_pretty(&settings).map_err(|e| format!("Failed to serialize settings: {e}"))?;
+    let content = serde_json::to_string_pretty(&settings)
+        .map_err(|e| format!("Failed to serialize settings: {e}"))?;
     fs::write(&path, content).map_err(|e| format!("Failed to write settings: {e}"))
 }

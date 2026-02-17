@@ -91,9 +91,7 @@ pub(crate) fn resolve_binary() -> Result<&'static str, String> {
     });
 
     if binary.is_empty() {
-        return Err(
-            "No container runtime found. Install Podman: brew install podman".to_string(),
-        );
+        return Err("No container runtime found. Install Podman: brew install podman".to_string());
     }
     Ok(binary.as_str())
 }
@@ -120,7 +118,14 @@ pub async fn compose_up(
 
     // Bring up all services in detached mode
     let up = Command::new(binary)
-        .args(["compose", "-f", &compose_path, "up", "-d", "--force-recreate"])
+        .args([
+            "compose",
+            "-f",
+            &compose_path,
+            "up",
+            "-d",
+            "--force-recreate",
+        ])
         .output()
         .map_err(|e| format!("compose up failed: {e}"))?;
 

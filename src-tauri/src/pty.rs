@@ -129,13 +129,7 @@ pub async fn pty_spawn(
         let mut child = child;
         let code = child
             .wait()
-            .map(|s| {
-                if s.success() {
-                    0
-                } else {
-                    s.exit_code() as i32
-                }
-            })
+            .map(|s| if s.success() { 0 } else { s.exit_code() as i32 })
             .unwrap_or(-1);
 
         let _ = on_data.send(PtyEvent::Exit { code });

@@ -39,7 +39,7 @@ pub async fn run_command(
         let on_out = on_output.clone();
         std::thread::spawn(move || {
             let reader = BufReader::new(stdout);
-            for line in reader.lines().flatten() {
+            for line in reader.lines().map_while(Result::ok) {
                 let _ = on_out.send(RunnerEvent::Stdout {
                     data: format!("{line}\n"),
                 });
@@ -52,7 +52,7 @@ pub async fn run_command(
         let on_err = on_output.clone();
         std::thread::spawn(move || {
             let reader = BufReader::new(stderr);
-            for line in reader.lines().flatten() {
+            for line in reader.lines().map_while(Result::ok) {
                 let _ = on_err.send(RunnerEvent::Stderr {
                     data: format!("{line}\n"),
                 });

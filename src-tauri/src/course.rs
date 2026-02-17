@@ -7,7 +7,6 @@ use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::State;
 
-
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CourseRecord {
@@ -44,7 +43,6 @@ pub enum Route {
         step_index: i64,
     },
 }
-
 
 #[derive(Deserialize)]
 struct Manifest {
@@ -85,7 +83,6 @@ pub struct CourseManifest {
     pub tags: Vec<String>,
     pub steps: Vec<ManifestStep>,
 }
-
 
 fn course_id(github_url: &str) -> String {
     let mut hasher = Sha256::new();
@@ -203,7 +200,6 @@ fn read_course_row(conn: &rusqlite::Connection, id: &str) -> Result<CourseRecord
     Ok(course)
 }
 
-
 #[tauri::command]
 pub async fn course_import(db: State<'_, Db>, github_url: String) -> Result<ImportResult, String> {
     let (owner, repo) = match parse_github_url(&github_url) {
@@ -228,13 +224,15 @@ pub async fn course_import(db: State<'_, Db>, github_url: String) -> Result<Impo
     }
 
     // Validate manifest via raw GitHub fetch — reject before wasting bandwidth on a full clone
-    let raw_url = format!(
-        "https://raw.githubusercontent.com/{owner}/{repo}/HEAD/handhold.yaml"
-    );
+    let raw_url = format!("https://raw.githubusercontent.com/{owner}/{repo}/HEAD/handhold.yaml");
     let manifest_text = match reqwest::get(&raw_url).await {
         Ok(resp) if resp.status().is_success() => match resp.text().await {
             Ok(text) => text,
-            Err(e) => return Ok(ImportResult::BadManifest { reason: e.to_string() }),
+            Err(e) => {
+                return Ok(ImportResult::BadManifest {
+                    reason: e.to_string(),
+                })
+            }
         },
         Ok(resp) if resp.status().as_u16() == 404 => return Ok(ImportResult::NoManifest),
         Ok(_) => return Ok(ImportResult::NotFound),
@@ -266,7 +264,13 @@ pub async fn course_import(db: State<'_, Db>, github_url: String) -> Result<Impo
 
     let clone_url = format!("https://github.com/{owner}/{repo}.git");
     let output = Command::new("git")
-        .args(["clone", "--depth", "1", &clone_url, dest.to_str().unwrap_or("")])
+        .args([
+            "clone",
+            "--depth",
+            "1",
+            &clone_url,
+            dest.to_str().unwrap_or(""),
+        ])
         .output()
         .map_err(|e| format!("Failed to run git: {e}"))?;
 
@@ -565,13 +569,17 @@ pub async fn route_save(db: State<'_, Db>, route: Route) -> Result<(), String> {
 pub async fn route_load(db: State<'_, Db>) -> Result<Route, String> {
     let conn = db.0.lock();
     let row = conn
-        .query_row("SELECT kind, course_id, step_index FROM app_route WHERE id = 1", [], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, Option<String>>(1)?,
-                row.get::<_, Option<i64>>(2)?,
-            ))
-        })
+        .query_row(
+            "SELECT kind, course_id, step_index FROM app_route WHERE id = 1",
+            [],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, Option<String>>(1)?,
+                    row.get::<_, Option<i64>>(2)?,
+                ))
+            },
+        )
         .map_err(|e| e.to_string())?;
 
     match row.0.as_str() {
@@ -628,8 +636,8 @@ pub async fn course_manifest(db: State<'_, Db>, id: String) -> Result<CourseMani
     let manifest_path = std::path::Path::new(&local_path).join("handhold.yaml");
     let content = std::fs::read_to_string(&manifest_path)
         .map_err(|e| format!("Failed to read manifest: {e}"))?;
-    let manifest: Manifest = serde_yml::from_str(&content)
-        .map_err(|e| format!("Failed to parse manifest: {e}"))?;
+    let manifest: Manifest =
+        serde_yml::from_str(&content).map_err(|e| format!("Failed to parse manifest: {e}"))?;
 
     Ok(manifest.into_public())
 }
@@ -659,11 +667,7 @@ pub async fn course_read_step(
         let mut entries: Vec<_> = std::fs::read_dir(&resolved)
             .map_err(|e| format!("Failed to read directory {step_path}: {e}"))?
             .filter_map(|e| e.ok())
-            .filter(|e| {
-                e.path()
-                    .extension()
-                    .is_some_and(|ext| ext == "md")
-            })
+            .filter(|e| e.path().extension().is_some_and(|ext| ext == "md"))
             .collect();
         entries.sort_by_key(|e| e.file_name());
 
@@ -712,8 +716,7 @@ pub async fn course_read_lab(
     let config: RawLabConfig = if config_path.exists() {
         let raw = std::fs::read_to_string(&config_path)
             .map_err(|e| format!("Failed to read lab.yaml: {e}"))?;
-        serde_yml::from_str(&raw)
-            .map_err(|e| format!("Failed to parse lab.yaml: {e}"))?
+        serde_yml::from_str(&raw).map_err(|e| format!("Failed to parse lab.yaml: {e}"))?
     } else {
         RawLabConfig::default()
     };

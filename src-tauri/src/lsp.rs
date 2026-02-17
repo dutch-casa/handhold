@@ -111,10 +111,7 @@ pub async fn lsp_spawn(
         read_lsp_messages(stdout, stdout_channel);
 
         // stdout closed — wait for child, send exit, cleanup
-        let code = child
-            .wait()
-            .map(|s| s.code().unwrap_or(-1))
-            .unwrap_or(-1);
+        let code = child.wait().map(|s| s.code().unwrap_or(-1)).unwrap_or(-1);
         let _ = exit_channel.send(LspEvent::Exit { code });
         sessions().lock().remove(&sid);
     });

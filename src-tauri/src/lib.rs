@@ -12,8 +12,8 @@ mod settings;
 mod tts;
 mod watcher;
 
-use tauri::Manager;
 use tauri::menu::{AboutMetadata, Menu, PredefinedMenuItem, Submenu};
+use tauri::Manager;
 
 fn build_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     let about_meta = AboutMetadata {

@@ -58,7 +58,10 @@ fn resolve_piper_dir() -> Result<PathBuf, String> {
     }
 
     if let Ok(exe) = std::env::current_exe() {
-        let candidate = exe.parent().unwrap_or(Path::new(".")).join("resources/piper");
+        let candidate = exe
+            .parent()
+            .unwrap_or(Path::new("."))
+            .join("resources/piper");
         if candidate.is_dir() {
             return Ok(candidate);
         }
@@ -138,8 +141,7 @@ fn float_wav_to_int16_pcm(wav_bytes: &[u8]) -> Result<(Vec<u8>, u32), String> {
         let mut sum = 0.0f32;
         for ch in 0..num_channels {
             let off = ch * 4;
-            sum +=
-                f32::from_le_bytes([frame[off], frame[off + 1], frame[off + 2], frame[off + 3]]);
+            sum += f32::from_le_bytes([frame[off], frame[off + 1], frame[off + 2], frame[off + 3]]);
         }
         let mono = (sum / num_channels as f32).clamp(-1.0, 1.0);
         let int_val = (mono * 32767.0) as i16;
@@ -612,8 +614,7 @@ pub async fn synthesize(
                     end_ms,
                 });
             }
-            let audio_base64 =
-                base64::engine::general_purpose::STANDARD.encode(&bundled.wav_bytes);
+            let audio_base64 = base64::engine::general_purpose::STANDARD.encode(&bundled.wav_bytes);
             let _ = on_event.send(TTSEvent::AudioReady {
                 audio_base64,
                 duration_ms: bundled.duration_ms,

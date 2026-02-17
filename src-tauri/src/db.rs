@@ -21,8 +21,7 @@ pub fn init() -> Result<Db, String> {
             .map_err(|e| format!("Failed to create db directory: {e}"))?;
     }
 
-    let conn =
-        Connection::open(&path).map_err(|e| format!("Failed to open database: {e}"))?;
+    let conn = Connection::open(&path).map_err(|e| format!("Failed to open database: {e}"))?;
 
     conn.execute_batch("PRAGMA journal_mode = WAL;")
         .map_err(|e| format!("Failed to set WAL mode: {e}"))?;
