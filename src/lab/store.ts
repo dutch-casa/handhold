@@ -311,6 +311,7 @@ export function buildFileTree(
 
     if (entry.kind === "dir") {
       childrenMap.set(entry.path, childrenMap.get(entry.path) ?? []);
+      // Lazy getter: children resolve after the full loop populates childrenMap
       const dirNode: FileTreeDir = {
         kind: "dir",
         path: entry.path,

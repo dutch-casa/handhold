@@ -19,9 +19,10 @@ type PresentationProps = {
   readonly initialSlideIndex?: number | undefined;
   readonly onSlideChange?: ((slideIndex: number) => void) | undefined;
   readonly onComplete?: (() => void) | undefined;
+  readonly bundlePath?: string | undefined;
 };
 
-export function Presentation({ lesson, initialSlideIndex, onSlideChange, onComplete }: PresentationProps) {
+export function Presentation({ lesson, initialSlideIndex, onSlideChange, onComplete, bundlePath }: PresentationProps) {
   const togglePlayPause = usePresentationStore((s) => s.togglePlayPause);
   const nextStep = usePresentationStore((s) => s.nextStep);
   const prevStep = usePresentationStore((s) => s.prevStep);
@@ -36,7 +37,7 @@ export function Presentation({ lesson, initialSlideIndex, onSlideChange, onCompl
   // No useEffect, no wasted initial render with empty state.
   const initializedRef = useRef(false);
   if (!initializedRef.current) {
-    usePresentationStore.getState().loadLesson(lesson, initialSlideIndex, onSlideChange);
+    usePresentationStore.getState().loadLesson(lesson, initialSlideIndex, onSlideChange, bundlePath);
     initializedRef.current = true;
   }
 

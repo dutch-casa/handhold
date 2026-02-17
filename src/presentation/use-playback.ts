@@ -34,7 +34,8 @@ export function usePlayback() {
   const schedulerRef = useRef<EventScheduler | null>(null);
 
   const narrationText = step?.narration.map((n) => n.text).join(" ") ?? "";
-  const { data: synthesis } = useTTS(narrationText);
+  const bundlePath = usePresentationStore((s) => s.bundlePath);
+  const { data: synthesis } = useTTS(narrationText, bundlePath);
 
   const timeline = useMemo(() => {
     if (!synthesis || !step) return [];
@@ -130,5 +131,5 @@ export function usePlayback() {
     if (!next) return "";
     return next.narration.map((n) => n.text).join(" ");
   });
-  useTTS(nextNarrationText);
+  useTTS(nextNarrationText, bundlePath);
 }

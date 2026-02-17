@@ -54,6 +54,34 @@ else
   fi
 fi
 
+# --- TTS Models (ONNX model + voices — platform-independent) ---
+MODELS_DIR="$PROJECT_ROOT/src-tauri/resources/models"
+ONNX_URL="https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx"
+VOICES_URL="https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin"
+
+mkdir -p "$MODELS_DIR"
+
+if [[ -f "$MODELS_DIR/kokoro-v1.0.onnx" ]] && [[ -s "$MODELS_DIR/kokoro-v1.0.onnx" ]]; then
+  echo "kokoro-v1.0.onnx already present, skipping."
+else
+  echo "Downloading kokoro-v1.0.onnx (~325 MB)..."
+  curl -fSL "$ONNX_URL" -o "$MODELS_DIR/kokoro-v1.0.onnx"
+  echo "Downloaded ($(du -h "$MODELS_DIR/kokoro-v1.0.onnx" | cut -f1))"
+fi
+
+if [[ -f "$MODELS_DIR/voices-v1.0.bin" ]] && [[ -s "$MODELS_DIR/voices-v1.0.bin" ]]; then
+  echo "voices-v1.0.bin already present, skipping."
+else
+  echo "Downloading voices-v1.0.bin (~27 MB)..."
+  curl -fSL "$VOICES_URL" -o "$MODELS_DIR/voices-v1.0.bin"
+  echo "Downloaded ($(du -h "$MODELS_DIR/voices-v1.0.bin" | cut -f1))"
+fi
+
 echo ""
 echo "Sidecar setup complete."
+echo ""
+echo "Binaries:"
 ls -lh "$BIN_DIR"
+echo ""
+echo "Models:"
+ls -lh "$MODELS_DIR"

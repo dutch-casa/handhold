@@ -16,10 +16,11 @@ type PresentationState = {
   readonly sceneIndex: number;
   readonly completedStepIds: ReadonlySet<string>;
   readonly onStepChange: ((index: number) => void) | null;
+  readonly bundlePath: string | undefined;
 };
 
 type PresentationActions = {
-  loadLesson: (lesson: ParsedLesson, initialStepIndex?: number, onStepChange?: (index: number) => void) => void;
+  loadLesson: (lesson: ParsedLesson, initialStepIndex?: number, onStepChange?: (index: number) => void, bundlePath?: string) => void;
   play: () => void;
   pause: () => void;
   togglePlayPause: () => void;
@@ -46,12 +47,13 @@ const INITIAL_STATE: PresentationState = {
   sceneIndex: 0,
   completedStepIds: new Set(),
   onStepChange: null,
+  bundlePath: undefined,
 };
 
 export const usePresentationStore = create<PresentationStore>((set, get) => ({
   ...INITIAL_STATE,
 
-  loadLesson: (lesson, initialStepIndex, onStepChange) =>
+  loadLesson: (lesson, initialStepIndex, onStepChange, bundlePath) =>
     set({
       lesson,
       steps: lesson.steps,
@@ -61,6 +63,7 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
       sceneIndex: 0,
       completedStepIds: new Set(),
       onStepChange: onStepChange ?? null,
+      bundlePath,
     }),
 
   play: () => set({ status: "playing" }),

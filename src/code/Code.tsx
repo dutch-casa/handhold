@@ -93,6 +93,7 @@ export function Code({ state, prevState, enterEffect, focus, annotations }: Code
     });
   }, [diff.lines, tokenLines, focusSet, annotationMap, substringFocusMap, pointerAnnotationMap]);
 
+  // Typewriter: spread the total animation duration evenly across lines
   const staggerDelay =
     enterEffect?.effect === "typewriter" && renderedLines.length > 0
       ? enterEffect.durationS / renderedLines.length

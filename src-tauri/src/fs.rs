@@ -198,6 +198,7 @@ pub struct FileContent {
 }
 
 const TS_EXTENSIONS: &[&str] = &["ts", "tsx", "js", "jsx", "mjs", "cjs"];
+// Caps for Monaco IntelliSense: keep total payload under browser memory pressure
 const MAX_TS_FILES: usize = 2000;
 const MAX_TS_BYTES: usize = 30 * 1024 * 1024; // 30 MB
 
@@ -271,6 +272,7 @@ fn collect_ts_files(
     Ok(())
 }
 
+// Separate cap for .d.ts type definitions — loaded alongside project files
 const MAX_TYPE_BYTES: usize = 10 * 1024 * 1024; // 10 MB
 
 #[tauri::command]

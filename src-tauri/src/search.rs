@@ -34,11 +34,14 @@ pub struct SearchResult {
     pub truncated: bool,
 }
 
+// Null byte in the first 512 bytes is the standard heuristic (matches git's approach).
+const BINARY_SNIFF_LEN: usize = 512;
+
 fn is_binary(path: &Path) -> bool {
     let Ok(bytes) = fs::read(path) else {
         return true;
     };
-    let check_len = bytes.len().min(512);
+    let check_len = bytes.len().min(BINARY_SNIFF_LEN);
     bytes[..check_len].contains(&0)
 }
 

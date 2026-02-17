@@ -9,7 +9,8 @@ src-tauri/gen/
 src-tauri/binaries/koko-*
 src-tauri/binaries/piper-*
 
-# Large model files
+# Large model files (downloaded by scripts/download-sidecars.sh)
+src-tauri/resources/models/
 *.onnx
 *.onnx.json
 checkpoints/

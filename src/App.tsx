@@ -1,12 +1,14 @@
 import { useMemo, useState } from "react";
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { HotkeysProvider } from "@tanstack/react-hotkeys";
+import { invoke } from "@tauri-apps/api/core";
 import { Presentation } from "@/presentation/Presentation";
 import { parseLesson } from "@/parser/parse-lesson";
 import { initSettings } from "@/lab/settings-store";
 import { Browser } from "@/browser/Browser";
 import { useRoute } from "@/browser/use-route";
 import {
+  useCourse,
   useCourseManifest,
   useCourseStep,
   useCompleteStep,
@@ -35,6 +37,16 @@ function AppContent() {
     queryKey: ["settings"],
     queryFn: initSettings,
     staleTime: Infinity,
+  });
+
+  // Trigger TTS model download in the background on app startup.
+  // koko auto-downloads ~350MB of model files on first use — doing it early
+  // means TTS is ready by the time the user hits play.
+  useQuery({
+    queryKey: ["tts-warmup"],
+    queryFn: () => invoke<string>("ensure_tts_ready"),
+    staleTime: Infinity,
+    retry: false,
   });
 
   if (isLoading) return null;
@@ -66,6 +78,7 @@ type CourseShellProps = {
 
 function CourseShell({ courseId, onBack }: CourseShellProps) {
   const { data: manifest, isLoading } = useCourseManifest(courseId);
+  const { data: course } = useCourse(courseId);
   const [stepIndex, setStepIndex] = useState(0);
   const completeStep = useCompleteStep();
 
@@ -96,7 +109,7 @@ function CourseShell({ courseId, onBack }: CourseShellProps) {
         onBack={onBack}
       />
       <div key={stepIndex} className="flex-1 min-h-0">
-        <StepView courseId={courseId} stepIndex={stepIndex} step={currentStep} onComplete={handleNext} />
+        <StepView courseId={courseId} stepIndex={stepIndex} step={currentStep} onComplete={handleNext} audioBundlePath={course ? `${course.localPath}/audio` : undefined} />
       </div>
     </div>
   );
@@ -107,9 +120,10 @@ type StepViewProps = {
   readonly stepIndex: number;
   readonly step: ManifestStep;
   readonly onComplete: () => void;
+  readonly audioBundlePath: string | undefined;
 };
 
-function StepView({ courseId, stepIndex, step, onComplete }: StepViewProps) {
+function StepView({ courseId, stepIndex, step, onComplete, audioBundlePath }: StepViewProps) {
   switch (step.kind) {
     case "lesson":
       return (
@@ -118,6 +132,7 @@ function StepView({ courseId, stepIndex, step, onComplete }: StepViewProps) {
           stepIndex={stepIndex}
           stepPath={step.path}
           onComplete={onComplete}
+          audioBundlePath={audioBundlePath}
         />
       );
     case "lab":
@@ -136,9 +151,10 @@ type LessonStepProps = {
   readonly stepIndex: number;
   readonly stepPath: string;
   readonly onComplete: () => void;
+  readonly audioBundlePath: string | undefined;
 };
 
-function LessonStep({ courseId, stepIndex, stepPath, onComplete }: LessonStepProps) {
+function LessonStep({ courseId, stepIndex, stepPath, onComplete, audioBundlePath }: LessonStepProps) {
   const { data: content, isLoading: contentLoading } = useCourseStep(courseId, stepPath);
   const { data: savedPosition, isLoading: positionLoading } = useSlidePosition(courseId, stepIndex);
   const savePosition = useSaveSlidePosition();
@@ -159,6 +175,7 @@ function LessonStep({ courseId, stepIndex, stepPath, onComplete }: LessonStepPro
         })
       }
       onComplete={onComplete}
+      bundlePath={audioBundlePath}
     />
   );
 }

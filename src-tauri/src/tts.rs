@@ -31,43 +31,73 @@ pub enum TTSEvent {
 
 fn resolve_koko_binary() -> Result<PathBuf, String> {
     let target_triple = env!("TARGET");
+    let exe_suffix = if cfg!(windows) { ".exe" } else { "" };
+
+    // Dev: src-tauri/binaries/koko-{triple}[.exe]
     let dev_candidate = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("binaries")
-        .join(format!("koko-{target_triple}"));
+        .join(format!("koko-{target_triple}{exe_suffix}"));
     if dev_candidate.exists() {
         return Ok(dev_candidate);
     }
 
+    // Production: Tauri places sidecars next to the main exe with target triple suffix
     if let Ok(exe) = std::env::current_exe() {
-        let candidate = exe.parent().unwrap_or(Path::new(".")).join("koko");
-        if candidate.exists() {
-            return Ok(candidate);
+        let dir = exe.parent().unwrap_or(Path::new("."));
+        for name in [
+            format!("koko-{target_triple}{exe_suffix}"),
+            format!("koko{exe_suffix}"),
+        ] {
+            let candidate = dir.join(&name);
+            if candidate.exists() {
+                return Ok(candidate);
+            }
         }
     }
 
-    Err(format!(
-        "koko binary not found. Checked at {} and next to exe",
-        dev_candidate.display()
-    ))
+    Err(format!("koko binary not found (target: {target_triple})"))
 }
 
-fn resolve_piper_dir() -> Result<PathBuf, String> {
+/// Directory for ONNX model + voices file.
+/// Resolution order:
+///   1. Dev: src-tauri/resources/piper/ (local checkout)
+///   2. Bundled: Tauri resource dir (models shipped inside .app/.deb/.msi)
+///   3. Fallback: app data dir (koko auto-downloads missing files on first use)
+fn resolve_models_dir() -> Result<PathBuf, String> {
+    // Dev: use local resources if they exist
     let dev_candidate = Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/piper");
     if dev_candidate.is_dir() {
         return Ok(dev_candidate);
     }
 
+    // Bundled: Tauri places resources relative to the executable.
+    // macOS: Contents/Resources/resources/models/
+    // Linux/Windows: next to exe in resources/models/
     if let Ok(exe) = std::env::current_exe() {
-        let candidate = exe
+        let exe_dir = exe.parent().unwrap_or(Path::new("."));
+
+        // macOS .app bundle: exe is in Contents/MacOS, resources in Contents/Resources
+        let macos_candidate = exe_dir
             .parent()
-            .unwrap_or(Path::new("."))
-            .join("resources/piper");
-        if candidate.is_dir() {
-            return Ok(candidate);
+            .unwrap_or(exe_dir)
+            .join("Resources/resources/models");
+        if macos_candidate.join("kokoro-v1.0.onnx").exists() {
+            return Ok(macos_candidate);
+        }
+
+        // Linux/Windows: resources dir next to exe
+        let flat_candidate = exe_dir.join("resources/models");
+        if flat_candidate.join("kokoro-v1.0.onnx").exists() {
+            return Ok(flat_candidate);
         }
     }
 
-    Err("resources/piper directory not found".to_string())
+    // Fallback: app data dir — koko auto-downloads missing files on first use
+    let app_dir = dirs::data_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("handhold/models");
+    std::fs::create_dir_all(&app_dir).map_err(|e| format!("Failed to create models dir: {e}"))?;
+    Ok(app_dir)
 }
 
 fn cache_dir() -> PathBuf {
@@ -78,23 +108,31 @@ fn cache_dir() -> PathBuf {
 
 // ── WAV / PCM utilities ──────────────────────────────────────────────
 
+// WAV header constants — RIFF/WAVE spec for mono 16-bit PCM
+const WAV_FORMAT_PCM: u16 = 1;
+const WAV_CHANNELS_MONO: u16 = 1;
+const WAV_BITS_PER_SAMPLE: u16 = 16;
+const WAV_BLOCK_ALIGN: u16 = (WAV_BITS_PER_SAMPLE / 8) * WAV_CHANNELS_MONO;
+const WAV_FMT_CHUNK_SIZE: u32 = 16;
+const WAV_HEADER_LEN: usize = 44;
+
 fn wav_wrap(pcm: &[u8], sample_rate: u32) -> Vec<u8> {
     let data_len = pcm.len() as u32;
-    let file_len = 36 + data_len;
-    let byte_rate = sample_rate * 2;
-    let mut out = Vec::with_capacity(44 + pcm.len());
+    let file_len = (WAV_HEADER_LEN as u32 - 8) + data_len;
+    let byte_rate = sample_rate * WAV_BLOCK_ALIGN as u32;
+    let mut out = Vec::with_capacity(WAV_HEADER_LEN + pcm.len());
 
     out.extend_from_slice(b"RIFF");
     out.extend_from_slice(&file_len.to_le_bytes());
     out.extend_from_slice(b"WAVE");
     out.extend_from_slice(b"fmt ");
-    out.extend_from_slice(&16u32.to_le_bytes());
-    out.extend_from_slice(&1u16.to_le_bytes()); // PCM format
-    out.extend_from_slice(&1u16.to_le_bytes()); // mono
+    out.extend_from_slice(&WAV_FMT_CHUNK_SIZE.to_le_bytes());
+    out.extend_from_slice(&WAV_FORMAT_PCM.to_le_bytes());
+    out.extend_from_slice(&WAV_CHANNELS_MONO.to_le_bytes());
     out.extend_from_slice(&sample_rate.to_le_bytes());
     out.extend_from_slice(&byte_rate.to_le_bytes());
-    out.extend_from_slice(&2u16.to_le_bytes()); // block align
-    out.extend_from_slice(&16u16.to_le_bytes()); // bits per sample
+    out.extend_from_slice(&WAV_BLOCK_ALIGN.to_le_bytes());
+    out.extend_from_slice(&WAV_BITS_PER_SAMPLE.to_le_bytes());
     out.extend_from_slice(b"data");
     out.extend_from_slice(&data_len.to_le_bytes());
     out.extend_from_slice(pcm);
@@ -102,7 +140,8 @@ fn wav_wrap(pcm: &[u8], sample_rate: u32) -> Vec<u8> {
     out
 }
 
-/// Convert Kokoro's float32 WAVE_FORMAT_EXTENSIBLE output to mono int16 PCM.
+/// Kokoro outputs float32 WAVE_FORMAT_EXTENSIBLE (possibly stereo). Downmix to mono int16 PCM
+/// so the browser can play it via a plain AudioBuffer without decoding overhead.
 fn float_wav_to_int16_pcm(wav_bytes: &[u8]) -> Result<(Vec<u8>, u32), String> {
     if wav_bytes.len() < 28 {
         return Err("WAV too short to contain valid header".into());
@@ -137,6 +176,7 @@ fn float_wav_to_int16_pcm(wav_bytes: &[u8]) -> Result<(Vec<u8>, u32), String> {
     let num_frames = raw.len() / frame_bytes;
     let mut pcm = Vec::with_capacity(num_frames * 2);
 
+    // chunks_exact: safe because raw.len() is data_size (from WAV header), always frame-aligned
     for frame in raw.chunks_exact(frame_bytes) {
         let mut sum = 0.0f32;
         for ch in 0..num_channels {
@@ -153,8 +193,9 @@ fn float_wav_to_int16_pcm(wav_bytes: &[u8]) -> Result<(Vec<u8>, u32), String> {
 
 // ── Sentence splitting ───────────────────────────────────────────────
 
-/// Split text into sentences on sentence-ending punctuation followed by whitespace.
-/// Preserves the original char offsets so we can map words back to the full text.
+/// Split narration into sentences for per-sentence TTS caching.
+/// Boundaries: `.` `!` `?` followed by whitespace or end-of-text (handles "..." and "?!" too).
+/// Returns (char_offset, slice) pairs — offsets let us map TSV word timings back to the full text.
 fn split_sentences(text: &str) -> Vec<(usize, &str)> {
     let mut sentences = Vec::new();
     let mut start = 0;
@@ -249,9 +290,10 @@ fn cache_write(hash: u64, pcm: &[u8], sample_rate: u32, tsv_content: &str) {
 // ── Per-sentence synthesis ───────────────────────────────────────────
 
 /// Synthesize a single sentence via koko. Returns int16 PCM + TSV content.
+/// koko auto-downloads the ONNX model and voices file on first use if missing.
 fn synthesize_sentence(
     koko_bin: &Path,
-    piper_dir: &Path,
+    _models_dir: &Path,
     model_path: &Path,
     voices_path: &Path,
     sentence: &str,
@@ -263,7 +305,6 @@ fn synthesize_sentence(
     let wav_str = tmp_wav.to_string_lossy().to_string();
 
     let output = Command::new(koko_bin)
-        .env("ESPEAK_DATA_PATH", piper_dir)
         .args([
             "-m",
             &model_path.to_string_lossy(),
@@ -548,18 +589,37 @@ fn stitch_sentences(
 
 type SynthResult<'a> = (Vec<(usize, &'a str)>, Vec<(usize, CachedSentence)>);
 
-fn synthesize_all_sentences(text: &str) -> Result<SynthResult<'_>, String> {
+/// Resolved lazily on first cache miss — avoids failing when koko isn't installed
+/// but all sentences are already cached.
+struct KokoContext {
+    koko_bin: PathBuf,
+    model_path: PathBuf,
+    voices_path: PathBuf,
+    models_dir: PathBuf,
+    tmp_id: u128,
+}
+
+fn resolve_koko_context() -> Result<KokoContext, String> {
     let koko_bin = resolve_koko_binary()?;
-    let piper_dir = resolve_piper_dir()?;
-    let model_path = piper_dir.join("kokoro-v1.0.onnx");
-    let voices_path = piper_dir.join("voices-v1.0.bin");
-
-    let sentences = split_sentences(text);
-
+    let models_dir = resolve_models_dir()?;
+    let model_path = models_dir.join("kokoro-v1.0.onnx");
+    let voices_path = models_dir.join("voices-v1.0.bin");
     let tmp_id = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_nanos();
+    Ok(KokoContext {
+        koko_bin,
+        model_path,
+        voices_path,
+        models_dir,
+        tmp_id,
+    })
+}
+
+fn synthesize_all_sentences(text: &str) -> Result<SynthResult<'_>, String> {
+    let sentences = split_sentences(text);
+    let mut koko: Option<KokoContext> = None;
 
     let mut results: Vec<(usize, CachedSentence)> = Vec::new();
     for (idx, &(char_start, sentence_text)) in sentences.iter().enumerate() {
@@ -568,13 +628,20 @@ fn synthesize_all_sentences(text: &str) -> Result<SynthResult<'_>, String> {
         let cached = match cache_hit(hash) {
             Some(c) => c,
             None => {
+                let ctx = match &koko {
+                    Some(k) => k,
+                    None => {
+                        koko = Some(resolve_koko_context()?);
+                        koko.as_ref().unwrap()
+                    }
+                };
                 let result = synthesize_sentence(
-                    &koko_bin,
-                    &piper_dir,
-                    &model_path,
-                    &voices_path,
+                    &ctx.koko_bin,
+                    &ctx.models_dir,
+                    &ctx.model_path,
+                    &ctx.voices_path,
                     sentence_text,
-                    tmp_id,
+                    ctx.tmp_id,
                     idx,
                 )?;
                 cache_write(hash, &result.pcm, result.sample_rate, &result.tsv_content);
@@ -586,6 +653,52 @@ fn synthesize_all_sentences(text: &str) -> Result<SynthResult<'_>, String> {
     }
 
     Ok((sentences, results))
+}
+
+// ── Warm-up command ──────────────────────────────────────────────────
+
+/// Pre-download TTS models on app startup so the first synthesis is fast.
+/// Runs koko with a trivial input — koko auto-downloads missing model files.
+#[tauri::command]
+pub async fn ensure_tts_ready() -> Result<String, String> {
+    let koko_bin = resolve_koko_binary()?;
+    let models_dir = resolve_models_dir()?;
+    let model_path = models_dir.join("kokoro-v1.0.onnx");
+    let voices_path = models_dir.join("voices-v1.0.bin");
+
+    // Already downloaded — skip
+    if model_path.exists() && voices_path.exists() {
+        return Ok("ready".to_string());
+    }
+
+    // Run koko with a tiny sentence to trigger the auto-download
+    let tmp_wav = std::env::temp_dir().join("handhold_tts_warmup.wav");
+    let wav_str = tmp_wav.to_string_lossy().to_string();
+    let output = Command::new(&koko_bin)
+        .args([
+            "-m",
+            &model_path.to_string_lossy(),
+            "-d",
+            &voices_path.to_string_lossy(),
+            "--mono",
+            "text",
+            "ready",
+            "-o",
+            &wav_str,
+        ])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .output()
+        .map_err(|e| format!("Failed to run koko warmup: {e}"))?;
+
+    let _ = std::fs::remove_file(&tmp_wav);
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("TTS warmup failed: {stderr}"));
+    }
+
+    Ok("downloaded".to_string())
 }
 
 // ── Main command ─────────────────────────────────────────────────────

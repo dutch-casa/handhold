@@ -95,6 +95,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             tts::synthesize,
             tts::export_audio,
+            tts::ensure_tts_ready,
             // File system
             fs::read_file,
             fs::write_file,

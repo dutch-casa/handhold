@@ -8,11 +8,10 @@ pub struct LineChange {
     pub kind: &'static str, // "added" | "modified" | "deleted"
 }
 
-/// Get per-line git diff status for a file.
-/// Returns empty vec if the file isn't tracked or git isn't available.
+/// Gutter decorations: per-line add/modify/delete markers for unstaged changes.
 #[tauri::command]
 pub async fn git_line_diff(path: String) -> Result<Vec<LineChange>, String> {
-    // git diff --unified=0 shows only changed hunks with no context
+    // --unified=0: only changed hunks, no context lines
     let output = Command::new("git")
         .args(["diff", "--unified=0", "--no-color", "--", &path])
         .output()
@@ -27,7 +26,7 @@ pub async fn git_line_diff(path: String) -> Result<Vec<LineChange>, String> {
     Ok(parse_unified_diff(&stdout))
 }
 
-/// Get per-line diff against HEAD (staged + unstaged changes).
+/// Like git_line_diff but includes staged changes — used for "all unsaved work" gutter.
 #[tauri::command]
 pub async fn git_line_diff_head(path: String) -> Result<Vec<LineChange>, String> {
     let output = Command::new("git")

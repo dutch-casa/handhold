@@ -146,9 +146,11 @@ function ZoomSlot({
       const rect = f.getBoundingClientRect();
       sumY += rect.top + rect.height / 2;
 
-      // Full-width elements (code lines): measure actual text content, skip gutter + annotations
-      // Positioned elements (SVG nodes): use element's own center
-      const isFullWidth = rect.width / containerRect.width > 0.9;
+      // Code lines span full container width (gutter + code + annotation).
+      // For zoom centering, measure only the code text (children[1]) not the whole line.
+      // SVG nodes are positioned, so their own center is correct.
+      const FULL_WIDTH_RATIO = 0.9;
+      const isFullWidth = rect.width / containerRect.width > FULL_WIDTH_RATIO;
       const contentChild = isFullWidth ? f.children[1] : undefined;
       if (contentChild) {
         const range = document.createRange();

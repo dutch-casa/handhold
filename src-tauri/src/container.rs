@@ -139,9 +139,11 @@ pub async fn compose_up(
 
     active.0.lock().insert(compose_path.clone());
 
-    // Poll compose ps until all healthy or timeout (60s, 2s interval)
-    for _ in 0..30 {
-        std::thread::sleep(std::time::Duration::from_secs(2));
+    const HEALTH_POLL_INTERVAL_SECS: u64 = 2;
+    const HEALTH_POLL_ATTEMPTS: usize = 30; // 60s total
+
+    for _ in 0..HEALTH_POLL_ATTEMPTS {
+        std::thread::sleep(std::time::Duration::from_secs(HEALTH_POLL_INTERVAL_SECS));
 
         let ps = Command::new(binary)
             .args(["compose", "-f", &compose_path, "ps", "--format", "json"])
