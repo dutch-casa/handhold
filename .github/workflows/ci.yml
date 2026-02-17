@@ -48,10 +48,10 @@ jobs:
         with:
           workspaces: src-tauri
 
-      - name: Create dummy sidecar binaries
+      - name: Create dummy sidecar binaries and resource dirs
         shell: bash
         run: |
-          mkdir -p src-tauri/binaries
+          mkdir -p src-tauri/binaries src-tauri/resources/models
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
             touch src-tauri/binaries/koko-${{ matrix.target }}.exe
           else
