@@ -225,6 +225,10 @@
     }
 }
 
+.diagram-aws-icon--user path {
+    fill: var(--foreground) !important;
+}
+
 /* ── IDE chrome utilities ───────────────────────────────────────── *
  * Semantic classes for the IDE shell. Each encodes its own spacing,
  * typography, and interaction rules. Components just apply the class. */

@@ -215,6 +215,7 @@ export type DiagramNodeDef = {
   readonly id: string;
   readonly label: string;
   readonly nodeType: DiagramNodeType;
+  readonly icon?: string;
 };
 
 export type DiagramEdgeDef = {

@@ -435,34 +435,66 @@ fn cache_write(hash: u64, pcm: &[u8], sample_rate: u32, tsv_content: &str) {
 
 // ── Per-sentence synthesis ───────────────────────────────────────────
 
+const DEFAULT_KOKORO_VOICE: &str = "am_michael";
+const FALLBACK_KOKORO_VOICE: &str = "bf_emma";
+
 /// Synthesize a single sentence via koko. Returns int16 PCM + TSV content.
 /// koko auto-downloads the ONNX model and voices file on first use if missing.
 fn synthesize_sentence(
-    koko_bin: &Path,
-    _models_dir: &Path,
-    model_path: &Path,
-    voices_path: &Path,
-    espeak_data_dir: Option<&Path>,
+    ctx: &KokoContext,
     sentence: &str,
-    tmp_id: u128,
     sentence_idx: usize,
 ) -> Result<CachedSentence, String> {
-    let tmp_wav = std::env::temp_dir().join(format!("handhold_tts_{tmp_id}_{sentence_idx}.wav"));
-    let tmp_tsv = std::env::temp_dir().join(format!("handhold_tts_{tmp_id}_{sentence_idx}.tsv"));
+    let primary = resolve_kokoro_voice();
+    match synthesize_sentence_with_voice(ctx, sentence, sentence_idx, &primary) {
+        Ok(result) => Ok(result),
+        Err(primary_err) => {
+            if primary == FALLBACK_KOKORO_VOICE {
+                return Err(primary_err);
+            }
+            synthesize_sentence_with_voice(
+                ctx,
+                sentence,
+                sentence_idx,
+                FALLBACK_KOKORO_VOICE,
+            )
+            .map_err(|fallback_err| {
+                format!(
+                    "koko failed for voice \"{primary}\": {primary_err}. Fallback \"{FALLBACK_KOKORO_VOICE}\" also failed: {fallback_err}"
+                )
+            })
+        }
+    }
+}
+
+fn resolve_kokoro_voice() -> String {
+    std::env::var("HANDHOLD_TTS_VOICE").unwrap_or_else(|_| DEFAULT_KOKORO_VOICE.to_string())
+}
+
+fn synthesize_sentence_with_voice(
+    ctx: &KokoContext,
+    sentence: &str,
+    sentence_idx: usize,
+    voice: &str,
+) -> Result<CachedSentence, String> {
+    let tmp_wav =
+        std::env::temp_dir().join(format!("handhold_tts_{}_{}.wav", ctx.tmp_id, sentence_idx));
+    let tmp_tsv =
+        std::env::temp_dir().join(format!("handhold_tts_{}_{}.tsv", ctx.tmp_id, sentence_idx));
     let wav_str = tmp_wav.to_string_lossy().to_string();
 
-    let mut cmd = Command::new(koko_bin);
-    if let Some(dir) = espeak_data_dir {
+    let mut cmd = Command::new(&ctx.koko_bin);
+    if let Some(dir) = ctx.espeak_data_dir.as_deref() {
         cmd.env("ESPEAK_DATA_PATH", dir);
     }
     let output = cmd
         .args([
             "-m",
-            &model_path.to_string_lossy(),
+            &ctx.model_path.to_string_lossy(),
             "-d",
-            &voices_path.to_string_lossy(),
+            &ctx.voices_path.to_string_lossy(),
             "-s",
-            "bf_emma",
+            voice,
             "--timestamps",
             "--mono",
             "text",
@@ -746,7 +778,6 @@ struct KokoContext {
     koko_bin: PathBuf,
     model_path: PathBuf,
     voices_path: PathBuf,
-    models_dir: PathBuf,
     espeak_data_dir: Option<PathBuf>,
     tmp_id: u128,
 }
@@ -765,7 +796,6 @@ fn resolve_koko_context() -> Result<KokoContext, String> {
         koko_bin,
         model_path,
         voices_path,
-        models_dir,
         espeak_data_dir,
         tmp_id,
     })
@@ -789,16 +819,7 @@ fn synthesize_all_sentences(text: &str) -> Result<SynthResult<'_>, String> {
                         koko.as_ref().unwrap()
                     }
                 };
-                let result = synthesize_sentence(
-                    &ctx.koko_bin,
-                    &ctx.models_dir,
-                    &ctx.model_path,
-                    &ctx.voices_path,
-                    ctx.espeak_data_dir.as_deref(),
-                    sentence_text,
-                    ctx.tmp_id,
-                    idx,
-                )?;
+                let result = synthesize_sentence(ctx, sentence_text, idx)?;
                 cache_write(hash, &result.pcm, result.sample_rate, &result.tsv_content);
                 result
             }

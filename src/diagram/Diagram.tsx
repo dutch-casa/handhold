@@ -6,7 +6,7 @@ import type { DiagramLayout } from "./layout";
 import { layoutDiagramWithElk } from "./elk-layout";
 import { DiagramNode } from "./DiagramNode";
 import { DiagramEdge } from "./DiagramEdge";
-import { DiagramGroup } from "./DiagramGroup";
+import { DiagramGroupBoundary, DiagramGroupLabel } from "./DiagramGroup";
 import { colors, fonts, fade } from "@/app/theme";
 
 type DiagramProps = {
@@ -50,7 +50,7 @@ export function Diagram({ state, focus, flow, annotations }: DiagramProps) {
       style={svgStyle}
     >
       {layout.groups.map((group) => (
-        <DiagramGroup key={group.name} group={group} />
+        <DiagramGroupBoundary key={`boundary-${group.name}`} group={group} />
       ))}
       {layout.edges.map((edge) => (
         <DiagramEdge
@@ -65,6 +65,9 @@ export function Diagram({ state, focus, flow, annotations }: DiagramProps) {
           node={node}
           dimmed={focusedIds.length > 0 && !focusedIds.includes(node.id)}
         />
+      ))}
+      {layout.groups.map((group) => (
+        <DiagramGroupLabel key={`label-${group.name}`} group={group} />
       ))}
       {dedupedAnnotations.map((anno) => {
         const nodeId = resolveDiagramRegion(anno.target, state)[0];

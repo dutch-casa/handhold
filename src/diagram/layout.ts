@@ -15,6 +15,7 @@ export type PositionedDiagramNode = {
   readonly id: string;
   readonly label: string;
   readonly nodeType: string;
+  readonly icon?: string;
   readonly x: number;
   readonly y: number;
   readonly width: number;

@@ -6,8 +6,10 @@ type DiagramGroupProps = {
   readonly group: PositionedDiagramGroup;
 };
 
-export function DiagramGroup({ group }: DiagramGroupProps) {
-  if (group.width === 0) return null;
+export function DiagramGroupBoundary({ group }: DiagramGroupProps) {
+  if (group.width === 0 || !Number.isFinite(group.width) || !Number.isFinite(group.height)) {
+    return null;
+  }
 
   return (
     <motion.g
@@ -24,8 +26,38 @@ export function DiagramGroup({ group }: DiagramGroupProps) {
         strokeWidth={1}
         strokeDasharray="4 3"
       />
+    </motion.g>
+  );
+}
+
+export function DiagramGroupLabel({ group }: DiagramGroupProps) {
+  if (group.width === 0 || !Number.isFinite(group.width) || !Number.isFinite(group.height)) {
+    return null;
+  }
+
+  const fontSize = Number.parseFloat(fontSizes.codeSmall);
+  const padX = 8;
+  const padY = 4;
+  const labelWidth = group.name.length * fontSize * 0.55 + padX * 2;
+  const labelHeight = fontSize + padY * 2;
+  const labelX = group.x + 8;
+  const labelY = group.y + 6;
+
+  return (
+    <motion.g
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={fade}
+    >
+      <motion.rect
+        animate={{ x: labelX, y: labelY, width: labelWidth, height: labelHeight }}
+        transition={spring}
+        rx={Number.parseFloat(radii.sm)}
+        fill={colors.bg}
+        opacity={0.75}
+      />
       <motion.text
-        animate={{ x: group.x + 8, y: group.y + 14 }}
+        animate={{ x: labelX + padX, y: labelY + labelHeight - padY }}
         transition={spring}
         fill={colors.textDim}
         fontFamily={fonts.ui}

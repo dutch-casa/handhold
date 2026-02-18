@@ -10,9 +10,9 @@ import { splitContentAndRegions } from "./parse-regions";
 // Parse the diagram mini-language.
 // Pure function: string → DiagramState.
 
-const NODE_RE = /^(\w+)\s+\[(\w+)\]$/;
-const LABELED_EDGE_RE = /^(\w+)\s+--(.+?)-->\s+(\w+)$/;
-const EDGE_RE = /^(\w+)\s+-->\s+(\w+)$/;
+const NODE_RE = /^([\w-]+)\s+\[([^\]]+)\]$/;
+const LABELED_EDGE_RE = /^([\w-]+)\s+--(.+?)-->\s+([\w-]+)$/;
+const EDGE_RE = /^([\w-]+)\s+-->\s+([\w-]+)$/;
 const GROUP_RE = /^\{(.+?):\s*(.+)\}$/;
 
 const VALID_TYPES = new Set<DiagramNodeType>([
@@ -86,9 +86,27 @@ export function parseDiagram(
     const nodeMatch = line.match(NODE_RE);
     if (nodeMatch) {
       const id = nodeMatch[1];
-      const type = nodeMatch[2];
-      if (id && type) {
-        nodes.push({ id, label: id, nodeType: asNodeType(type) });
+      const raw = nodeMatch[2];
+      if (id && raw) {
+        const tokens = raw.split(/\s+/).filter(Boolean);
+        let nodeType: DiagramNodeType = "service";
+        let icon: string | undefined;
+
+        for (const token of tokens) {
+          if (token.startsWith("icon=")) {
+            icon = token.slice("icon=".length);
+            continue;
+          }
+          if (token.startsWith("type=")) {
+            nodeType = asNodeType(token.slice("type=".length));
+            continue;
+          }
+          if (!token.includes("=") && nodeType === "service") {
+            nodeType = asNodeType(token);
+          }
+        }
+
+        nodes.push({ id, label: id, nodeType, icon });
       }
       continue;
     }

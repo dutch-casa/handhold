@@ -342,7 +342,17 @@ fast-path: cache
 ```
 ````
 
-**Node types:** `[service]` (default), `[database]`, `[client]`, `[cache]`, `[queue]`
+**Node types:** `[service]` (default), `[database]`, `[client]`, `[user]`, `[server]`, `[cache]`, `[queue]`, `[message-queue]`, `[load-balancer]`, `[api-gateway]`
+
+**Optional icon override:** nodes render AWS icons for common infrastructure types.
+**Default policy:** use AWS icons for all diagram nodes unless explicitly told otherwise.
+Add `icon=aws:<key>` to force a specific AWS icon.
+
+Example:
+
+```
+edge [api-gateway icon=aws:apigateway]
+```
 
 **Edges:** `a --> b` (directed), `a --label--> b` (labeled)
 

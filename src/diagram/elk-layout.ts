@@ -10,11 +10,14 @@ import type {
 // Singleton ELK instance. Reused across all layout calls.
 const elk = new ELK();
 
-const NODE_W = 140;
-const NODE_H = 56;
-const PAD = 40;
-const GROUP_PAD = 20;
+const NODE_W = 72;
+const NODE_H = 72;
+const ICON_NODE_W = 72;
+const ICON_NODE_H = 72;
+const PAD = 60;
+const GROUP_PAD = 28;
 const ARROW_SIZE = 8;
+const LABEL_CLEARANCE = 24;
 
 // Async layout using ELK's layered algorithm with orthogonal edge routing.
 // Returns positioned nodes, edges (with routed paths), and groups.
@@ -24,16 +27,19 @@ export async function layoutDiagramWithElk(state: DiagramState): Promise<Diagram
     layoutOptions: {
       "elk.algorithm": "layered",
       "elk.direction": "RIGHT",
-      "elk.spacing.nodeNode": "60",
-      "elk.layered.spacing.nodeNodeBetweenLayers": "80",
+      "elk.spacing.nodeNode": String(80 + LABEL_CLEARANCE),
+      "elk.layered.spacing.nodeNodeBetweenLayers": String(120 + LABEL_CLEARANCE),
       "elk.edgeRouting": "ORTHOGONAL",
       "elk.padding": `[top=${PAD},left=${PAD},bottom=${PAD},right=${PAD}]`,
     },
-    children: state.nodes.map((n) => ({
-      id: n.id,
-      width: NODE_W,
-      height: NODE_H,
-    })),
+    children: state.nodes.map((n) => {
+      const size = sizeForNode(n);
+      return {
+        id: n.id,
+        width: size.width,
+        height: size.height,
+      };
+    }),
     edges: state.edges.map((e, i) => ({
       id: `e${i}`,
       sources: [e.fromId],
@@ -51,6 +57,7 @@ export async function layoutDiagramWithElk(state: DiagramState): Promise<Diagram
       id: child.id,
       label: def?.label ?? child.id,
       nodeType: def?.nodeType ?? "service",
+      icon: def?.icon,
       x: child.x ?? 0,
       y: child.y ?? 0,
       width: child.width ?? NODE_W,
@@ -190,7 +197,7 @@ export async function layoutDiagramWithElk(state: DiagramState): Promise<Diagram
       minX = Math.min(minX, node.x);
       minY = Math.min(minY, node.y);
       maxX = Math.max(maxX, node.x + node.width);
-      maxY = Math.max(maxY, node.y + node.height);
+      maxY = Math.max(maxY, node.y + node.height + LABEL_CLEARANCE);
     }
 
     if (minX === Infinity) {
@@ -210,4 +217,11 @@ export async function layoutDiagramWithElk(state: DiagramState): Promise<Diagram
   const height = (result as { height?: number }).height ?? 0;
 
   return { nodes, edges, groups, width, height };
+}
+
+function sizeForNode(node: DiagramState["nodes"][number]): { width: number; height: number } {
+  if (node.icon) {
+    return { width: ICON_NODE_W, height: ICON_NODE_H };
+  }
+  return { width: NODE_W, height: NODE_H };
 }
