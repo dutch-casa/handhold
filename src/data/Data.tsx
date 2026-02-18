@@ -47,9 +47,13 @@ export function Data({ state, focus, flow, annotations }: DataProps) {
     return [...byTarget.values()];
   }, [annotations]);
 
+  const VIEW_PAD_X = 16;
+  const VIEW_PAD_TOP = 28;
+  const VIEW_PAD_BOTTOM = 16;
+
   return (
     <svg
-      viewBox={`0 0 ${layout.width} ${layout.height}`}
+      viewBox={`${-VIEW_PAD_X} ${-VIEW_PAD_TOP} ${layout.width + VIEW_PAD_X * 2} ${layout.height + VIEW_PAD_TOP + VIEW_PAD_BOTTOM}`}
       width={layout.width}
       height={layout.height}
       style={{ maxWidth: "100%", height: "auto", display: "block" }}

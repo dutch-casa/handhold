@@ -33,10 +33,13 @@ fn resolve_koko_binary() -> Result<PathBuf, String> {
     let target_triple = env!("TARGET");
     let exe_suffix = if cfg!(windows) { ".exe" } else { "" };
 
+    let mut searched: Vec<PathBuf> = Vec::new();
+
     // Dev: src-tauri/binaries/koko-{triple}[.exe]
     let dev_candidate = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("binaries")
         .join(format!("koko-{target_triple}{exe_suffix}"));
+    searched.push(dev_candidate.clone());
     if dev_candidate.exists() {
         return Ok(dev_candidate);
     }
@@ -49,25 +52,45 @@ fn resolve_koko_binary() -> Result<PathBuf, String> {
             format!("koko{exe_suffix}"),
         ] {
             let candidate = dir.join(&name);
+            searched.push(candidate.clone());
             if candidate.exists() {
                 return Ok(candidate);
             }
         }
     }
 
-    Err(format!("koko binary not found (target: {target_triple})"))
+    let searched_list = searched
+        .iter()
+        .map(|p| p.to_string_lossy())
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    Err(format!(
+        "koko binary not found (target: {target_triple}). Searched: {searched_list}. \
+        Run scripts/download-sidecars.sh for this target before building."
+    ))
 }
 
 /// Directory for ONNX model + voices file.
 /// Resolution order:
-///   1. Dev: src-tauri/resources/piper/ (local checkout)
+///   1. Dev: src-tauri/resources/models/ (preferred) or resources/piper/ (legacy)
 ///   2. Bundled: Tauri resource dir (models shipped inside .app/.deb/.msi)
 ///   3. Fallback: app data dir (koko auto-downloads missing files on first use)
+fn models_dir_has_required_files(dir: &Path) -> bool {
+    dir.join("kokoro-v1.0.onnx").is_file() && dir.join("voices-v1.0.bin").is_file()
+}
+
 fn resolve_models_dir() -> Result<PathBuf, String> {
-    // Dev: use local resources if they exist
-    let dev_candidate = Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/piper");
-    if dev_candidate.is_dir() {
-        return Ok(dev_candidate);
+    // Dev: prefer the same directory that gets bundled.
+    let dev_models = Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/models");
+    if models_dir_has_required_files(&dev_models) {
+        return Ok(dev_models);
+    }
+
+    // Legacy dev location (older piper layout)
+    let dev_legacy = Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/piper");
+    if models_dir_has_required_files(&dev_legacy) {
+        return Ok(dev_legacy);
     }
 
     // Bundled: Tauri places resources relative to the executable.
@@ -81,13 +104,13 @@ fn resolve_models_dir() -> Result<PathBuf, String> {
             .parent()
             .unwrap_or(exe_dir)
             .join("Resources/resources/models");
-        if macos_candidate.join("kokoro-v1.0.onnx").exists() {
+        if models_dir_has_required_files(&macos_candidate) {
             return Ok(macos_candidate);
         }
 
         // Linux/Windows: resources dir next to exe
         let flat_candidate = exe_dir.join("resources/models");
-        if flat_candidate.join("kokoro-v1.0.onnx").exists() {
+        if models_dir_has_required_files(&flat_candidate) {
             return Ok(flat_candidate);
         }
     }
@@ -104,6 +127,36 @@ fn cache_dir() -> PathBuf {
     dirs::cache_dir()
         .unwrap_or_else(|| PathBuf::from("/tmp"))
         .join("handhold/tts")
+}
+
+fn resolve_espeak_data_dir() -> Option<PathBuf> {
+    // Dev: bundled alongside the kokoro resources checkout.
+    let dev_candidate = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("resources/piper/espeak-ng-data");
+    if dev_candidate.is_dir() {
+        return Some(dev_candidate);
+    }
+
+    if let Ok(exe) = std::env::current_exe() {
+        let exe_dir = exe.parent().unwrap_or(Path::new("."));
+
+        // macOS .app bundle
+        let macos_candidate = exe_dir
+            .parent()
+            .unwrap_or(exe_dir)
+            .join("Resources/resources/piper/espeak-ng-data");
+        if macos_candidate.is_dir() {
+            return Some(macos_candidate);
+        }
+
+        // Linux/Windows flat resources
+        let flat_candidate = exe_dir.join("resources/piper/espeak-ng-data");
+        if flat_candidate.is_dir() {
+            return Some(flat_candidate);
+        }
+    }
+
+    None
 }
 
 // ── WAV / PCM utilities ──────────────────────────────────────────────
@@ -140,48 +193,141 @@ fn wav_wrap(pcm: &[u8], sample_rate: u32) -> Vec<u8> {
     out
 }
 
-/// Kokoro outputs float32 WAVE_FORMAT_EXTENSIBLE (possibly stereo). Downmix to mono int16 PCM
-/// so the browser can play it via a plain AudioBuffer without decoding overhead.
-fn float_wav_to_int16_pcm(wav_bytes: &[u8]) -> Result<(Vec<u8>, u32), String> {
-    if wav_bytes.len() < 28 {
-        return Err("WAV too short to contain valid header".into());
+/// Decode WAV → mono int16 PCM.
+/// Supports PCM 16-bit and IEEE float 32-bit (including WAVE_FORMAT_EXTENSIBLE).
+fn wav_to_int16_pcm(wav_bytes: &[u8]) -> Result<(Vec<u8>, u32), String> {
+    let (format, num_channels, sample_rate, bits_per_sample, data) =
+        parse_wav_chunks(wav_bytes)?;
+
+    match (format, bits_per_sample) {
+        (1, 16) => pcm16_to_mono(data, num_channels, sample_rate),
+        (3, 32) => float32_to_mono(data, num_channels, sample_rate),
+        (0xFFFE, 16) => pcm16_to_mono(data, num_channels, sample_rate),
+        (0xFFFE, 32) => float32_to_mono(data, num_channels, sample_rate),
+        _ => Err(format!(
+            "Unsupported WAV format: format={format} bits={bits_per_sample}"
+        )),
+    }
+}
+
+fn parse_wav_chunks(
+    wav_bytes: &[u8],
+) -> Result<(u16, usize, u32, u16, &[u8]), String> {
+    if wav_bytes.len() < 12 {
+        return Err("WAV too short to contain RIFF header".into());
+    }
+    if &wav_bytes[0..4] != b"RIFF" || &wav_bytes[8..12] != b"WAVE" {
+        return Err("Invalid RIFF/WAVE header".into());
     }
 
-    let num_channels = u16::from_le_bytes([wav_bytes[22], wav_bytes[23]]) as usize;
-    let sample_rate =
-        u32::from_le_bytes([wav_bytes[24], wav_bytes[25], wav_bytes[26], wav_bytes[27]]);
+    let mut offset = 12;
+    let mut format: Option<u16> = None;
+    let mut num_channels: Option<usize> = None;
+    let mut sample_rate: Option<u32> = None;
+    let mut bits_per_sample: Option<u16> = None;
+    let mut data_chunk: Option<&[u8]> = None;
 
-    let pos = wav_bytes
-        .windows(4)
-        .position(|w| w == b"data")
-        .ok_or("No 'data' chunk found in WAV")?;
+    while offset + 8 <= wav_bytes.len() {
+        let chunk_id = &wav_bytes[offset..offset + 4];
+        let chunk_size = u32::from_le_bytes([
+            wav_bytes[offset + 4],
+            wav_bytes[offset + 5],
+            wav_bytes[offset + 6],
+            wav_bytes[offset + 7],
+        ]) as usize;
+        let chunk_start = offset + 8;
+        let chunk_end = (chunk_start + chunk_size).min(wav_bytes.len());
 
-    let size_offset = pos + 4;
-    if wav_bytes.len() < size_offset + 4 {
-        return Err("WAV data chunk truncated".into());
+        if chunk_id == b"fmt " {
+            if chunk_size < 16 || chunk_end < chunk_start + 16 {
+                return Err("WAV fmt chunk too small".into());
+            }
+            format = Some(u16::from_le_bytes([
+                wav_bytes[chunk_start],
+                wav_bytes[chunk_start + 1],
+            ]));
+            num_channels = Some(
+                u16::from_le_bytes([
+                    wav_bytes[chunk_start + 2],
+                    wav_bytes[chunk_start + 3],
+                ]) as usize,
+            );
+            sample_rate = Some(u32::from_le_bytes([
+                wav_bytes[chunk_start + 4],
+                wav_bytes[chunk_start + 5],
+                wav_bytes[chunk_start + 6],
+                wav_bytes[chunk_start + 7],
+            ]));
+            bits_per_sample = Some(u16::from_le_bytes([
+                wav_bytes[chunk_start + 14],
+                wav_bytes[chunk_start + 15],
+            ]));
+        } else if chunk_id == b"data" {
+            data_chunk = Some(&wav_bytes[chunk_start..chunk_end]);
+        }
+
+        // Chunks are word-aligned (pad to even).
+        offset = chunk_end + (chunk_size % 2);
     }
 
-    let data_size = u32::from_le_bytes([
-        wav_bytes[size_offset],
-        wav_bytes[size_offset + 1],
-        wav_bytes[size_offset + 2],
-        wav_bytes[size_offset + 3],
-    ]) as usize;
+    let format = format.ok_or("Missing WAV fmt chunk")?;
+    let num_channels = num_channels.ok_or("Missing WAV channel count")?;
+    let sample_rate = sample_rate.ok_or("Missing WAV sample rate")?;
+    let bits_per_sample = bits_per_sample.ok_or("Missing WAV bits per sample")?;
+    let data = data_chunk.ok_or("Missing WAV data chunk")?;
 
-    let data_start = size_offset + 4;
-    let data_end = (data_start + data_size).min(wav_bytes.len());
-    let raw = &wav_bytes[data_start..data_end];
+    if num_channels == 0 {
+        return Err("WAV has zero channels".into());
+    }
 
+    Ok((format, num_channels, sample_rate, bits_per_sample, data))
+}
+
+fn pcm16_to_mono(
+    data: &[u8],
+    num_channels: usize,
+    sample_rate: u32,
+) -> Result<(Vec<u8>, u32), String> {
+    let frame_bytes = num_channels * 2;
+    if data.len() < frame_bytes {
+        return Err("WAV data chunk too small".into());
+    }
+    let mut pcm = Vec::with_capacity(data.len() / num_channels);
+    for frame in data.chunks_exact(frame_bytes) {
+        let mut sum = 0i32;
+        for ch in 0..num_channels {
+            let off = ch * 2;
+            let sample = i16::from_le_bytes([frame[off], frame[off + 1]]) as i32;
+            sum += sample;
+        }
+        let mono = (sum / num_channels as i32) as i16;
+        pcm.extend_from_slice(&mono.to_le_bytes());
+    }
+    Ok((pcm, sample_rate))
+}
+
+fn float32_to_mono(
+    data: &[u8],
+    num_channels: usize,
+    sample_rate: u32,
+) -> Result<(Vec<u8>, u32), String> {
     let frame_bytes = num_channels * 4;
-    let num_frames = raw.len() / frame_bytes;
+    if data.len() < frame_bytes {
+        return Err("WAV data chunk too small".into());
+    }
+    let num_frames = data.len() / frame_bytes;
     let mut pcm = Vec::with_capacity(num_frames * 2);
 
-    // chunks_exact: safe because raw.len() is data_size (from WAV header), always frame-aligned
-    for frame in raw.chunks_exact(frame_bytes) {
+    for frame in data.chunks_exact(frame_bytes) {
         let mut sum = 0.0f32;
         for ch in 0..num_channels {
             let off = ch * 4;
-            sum += f32::from_le_bytes([frame[off], frame[off + 1], frame[off + 2], frame[off + 3]]);
+            sum += f32::from_le_bytes([
+                frame[off],
+                frame[off + 1],
+                frame[off + 2],
+                frame[off + 3],
+            ]);
         }
         let mono = (sum / num_channels as f32).clamp(-1.0, 1.0);
         let int_val = (mono * 32767.0) as i16;
@@ -296,6 +442,7 @@ fn synthesize_sentence(
     _models_dir: &Path,
     model_path: &Path,
     voices_path: &Path,
+    espeak_data_dir: Option<&Path>,
     sentence: &str,
     tmp_id: u128,
     sentence_idx: usize,
@@ -304,7 +451,11 @@ fn synthesize_sentence(
     let tmp_tsv = std::env::temp_dir().join(format!("handhold_tts_{tmp_id}_{sentence_idx}.tsv"));
     let wav_str = tmp_wav.to_string_lossy().to_string();
 
-    let output = Command::new(koko_bin)
+    let mut cmd = Command::new(koko_bin);
+    if let Some(dir) = espeak_data_dir {
+        cmd.env("ESPEAK_DATA_PATH", dir);
+    }
+    let output = cmd
         .args([
             "-m",
             &model_path.to_string_lossy(),
@@ -351,7 +502,7 @@ fn synthesize_sentence(
         return Err("koko produced no audio output".to_string());
     }
 
-    let (pcm, sample_rate) = float_wav_to_int16_pcm(&wav_bytes)?;
+    let (pcm, sample_rate) = wav_to_int16_pcm(&wav_bytes)?;
 
     Ok(CachedSentence {
         pcm,
@@ -596,6 +747,7 @@ struct KokoContext {
     model_path: PathBuf,
     voices_path: PathBuf,
     models_dir: PathBuf,
+    espeak_data_dir: Option<PathBuf>,
     tmp_id: u128,
 }
 
@@ -604,6 +756,7 @@ fn resolve_koko_context() -> Result<KokoContext, String> {
     let models_dir = resolve_models_dir()?;
     let model_path = models_dir.join("kokoro-v1.0.onnx");
     let voices_path = models_dir.join("voices-v1.0.bin");
+    let espeak_data_dir = resolve_espeak_data_dir();
     let tmp_id = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
@@ -613,6 +766,7 @@ fn resolve_koko_context() -> Result<KokoContext, String> {
         model_path,
         voices_path,
         models_dir,
+        espeak_data_dir,
         tmp_id,
     })
 }
@@ -640,6 +794,7 @@ fn synthesize_all_sentences(text: &str) -> Result<SynthResult<'_>, String> {
                     &ctx.models_dir,
                     &ctx.model_path,
                     &ctx.voices_path,
+                    ctx.espeak_data_dir.as_deref(),
                     sentence_text,
                     ctx.tmp_id,
                     idx,
@@ -665,6 +820,7 @@ pub async fn ensure_tts_ready() -> Result<String, String> {
     let models_dir = resolve_models_dir()?;
     let model_path = models_dir.join("kokoro-v1.0.onnx");
     let voices_path = models_dir.join("voices-v1.0.bin");
+    let espeak_data_dir = resolve_espeak_data_dir();
 
     // Already downloaded — skip
     if model_path.exists() && voices_path.exists() {
@@ -674,7 +830,11 @@ pub async fn ensure_tts_ready() -> Result<String, String> {
     // Run koko with a tiny sentence to trigger the auto-download
     let tmp_wav = std::env::temp_dir().join("handhold_tts_warmup.wav");
     let wav_str = tmp_wav.to_string_lossy().to_string();
-    let output = Command::new(&koko_bin)
+    let mut cmd = Command::new(&koko_bin);
+    if let Some(dir) = espeak_data_dir {
+        cmd.env("ESPEAK_DATA_PATH", dir);
+    }
+    let output = cmd
         .args([
             "-m",
             &model_path.to_string_lossy(),
@@ -695,7 +855,12 @@ pub async fn ensure_tts_ready() -> Result<String, String> {
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("TTS warmup failed: {stderr}"));
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        return Err(format!(
+            "TTS warmup failed: {stderr} {stdout} (model: {}, voices: {})",
+            model_path.to_string_lossy(),
+            voices_path.to_string_lossy()
+        ));
     }
 
     Ok("downloaded".to_string())

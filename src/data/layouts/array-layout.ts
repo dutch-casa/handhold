@@ -1,24 +1,40 @@
 import type { ArrayData } from "@/types/lesson";
 import type { Layout, PositionedNode, PositionedPointer } from "../layout-types";
 
-// Layout: horizontal row of equal-width cells.
+// Layout: horizontal row with per-cell width (content-aware).
 // Pointers sit below their target cell.
 
-const CELL_W = 56;
+const MIN_CELL_W = 56;
+const MAX_CELL_W = 220;
 const CELL_H = 44;
-const GAP = 4;
+const GAP = 8;
+const CHAR_W = 8;
+const CELL_PADDING_X = 16;
 const POINTER_OFFSET_Y = 32;
 const PAD = 16;
 
 export function layoutArray(data: ArrayData): Layout {
-  const nodes: PositionedNode[] = data.values.map((value, i) => ({
-    id: String(i),
-    value,
-    x: PAD + i * (CELL_W + GAP),
-    y: PAD,
-    width: CELL_W,
-    height: CELL_H,
-  }));
+  const widths = data.values.map((value) => {
+    const content = String(value);
+    const contentW = content.length * CHAR_W + CELL_PADDING_X * 2;
+    return Math.min(MAX_CELL_W, Math.max(MIN_CELL_W, contentW));
+  });
+
+  const nodes: PositionedNode[] = [];
+  let x = PAD;
+  for (let i = 0; i < data.values.length; i++) {
+    const value = data.values[i] ?? "";
+    const width = widths[i] ?? MIN_CELL_W;
+    nodes.push({
+      id: String(i),
+      value,
+      x,
+      y: PAD,
+      width,
+      height: CELL_H,
+    });
+    x += width + GAP;
+  }
 
   const pointers: PositionedPointer[] = data.pointers.map((p) => {
     const targetIdx = Number(p.targetId);
@@ -28,7 +44,7 @@ export function layoutArray(data: ArrayData): Layout {
     return { name: p.name, x, y };
   });
 
-  const totalW = data.values.length * (CELL_W + GAP) - GAP + PAD * 2;
+  const totalW = (nodes.at(-1)?.x ?? PAD) + (nodes.at(-1)?.width ?? 0) + PAD;
   const totalH = CELL_H + POINTER_OFFSET_Y + PAD * 2 + 16;
 
   return { nodes, edges: [], pointers, width: totalW, height: totalH };

@@ -48,9 +48,14 @@ else
   else
     echo "WARNING: koko binary not available for ${TARGET_TRIPLE}"
     echo "  Upload it to the '${RELEASE_TAG}' release on ${REPO}"
-    echo "  Creating placeholder so the Tauri build script doesn't fail..."
-    touch "$KOKO_BIN"
-    chmod +x "$KOKO_BIN"
+    if [[ "${ALLOW_PLACEHOLDER:-}" == "1" ]]; then
+      echo "  ALLOW_PLACEHOLDER=1 set; creating placeholder for local dev."
+      touch "$KOKO_BIN"
+      chmod +x "$KOKO_BIN"
+    else
+      echo "  Failing: missing sidecar breaks release builds."
+      exit 1
+    fi
   fi
 fi
 

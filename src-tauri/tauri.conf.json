@@ -39,7 +39,7 @@
       "icons/icon.ico"
     ],
     "externalBin": ["binaries/koko"],
-    "resources": ["resources/models/"],
+    "resources": ["resources/models/", "resources/piper/espeak-ng-data/"],
     "copyright": "© 2026 Dutch Casadaban. All rights reserved.",
     "shortDescription": "Interactive course platform",
     "macOS": {

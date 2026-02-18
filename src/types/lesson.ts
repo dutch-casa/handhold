@@ -204,7 +204,12 @@ export type DiagramNodeType =
   | "service"
   | "database"
   | "cache"
-  | "queue";
+  | "queue"
+  | "load-balancer"
+  | "api-gateway"
+  | "message-queue"
+  | "user"
+  | "server";
 
 export type DiagramNodeDef = {
   readonly id: string;

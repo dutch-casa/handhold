@@ -21,6 +21,11 @@ const VALID_TYPES = new Set<DiagramNodeType>([
   "database",
   "cache",
   "queue",
+  "load-balancer",
+  "api-gateway",
+  "message-queue",
+  "user",
+  "server",
 ]);
 
 function asNodeType(s: string): DiagramNodeType {
