@@ -22,8 +22,9 @@ export function useLabHotkeys(lab: Lab): void {
   }, { preventDefault: true, conflictBehavior: "replace" });
 
   useHotkey("Mod+W", () => {
-    if (editor.activePath === undefined) return;
-    ui.requestClose(editor.activePath);
+    const path = editor.focusedPane === "right" ? editor.rightActivePath : editor.activePath;
+    if (path === undefined) return;
+    ui.requestClose(path);
   }, { preventDefault: true });
 
   // --- View ---
@@ -89,5 +90,23 @@ export function useLabHotkeys(lab: Lab): void {
     if (idx === -1 || tabs.length < 2) return;
     const prev = tabs[(idx - 1 + tabs.length) % tabs.length];
     if (prev) editor.select(prev.path);
+  }, { preventDefault: true });
+
+  // --- Split Editor ---
+
+  useHotkey({ key: "\\", mod: true }, () => {
+    if (editor.activePath !== undefined) {
+      editor.splitRight(editor.activePath);
+    }
+  }, { preventDefault: true });
+
+  useHotkey("Mod+1", () => {
+    editor.setFocusedPane("left");
+  }, { preventDefault: true });
+
+  useHotkey("Mod+2", () => {
+    if (editor.rightActivePath !== undefined) {
+      editor.setFocusedPane("right");
+    }
   }, { preventDefault: true });
 }

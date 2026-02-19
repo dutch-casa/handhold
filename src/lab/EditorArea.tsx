@@ -1,5 +1,6 @@
 import { Editor } from "@/lab/Editor";
 import { EditorTabs } from "@/lab/EditorTabs";
+import { Group, Panel, Separator } from "react-resizable-panels";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,8 +16,10 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Code, Folder, ChevronRight } from "lucide-react";
 import { FileIcon } from "@/lab/file-icons";
+import type { editor as monacoEditor } from "monaco-editor";
 import type { LabEditorSlice } from "@/lab/use-lab";
 import type { FileTreeNode } from "@/types/lab";
+import type { LineChange } from "@/lab/tauri/git";
 
 function extFromPath(path: string): string {
   const dot = path.lastIndexOf(".");
@@ -29,6 +32,8 @@ type EditorAreaProps = {
   readonly tree: readonly FileTreeNode[];
   readonly rootPath: string;
 };
+
+// --- Breadcrumbs ---
 
 function findChildrenAtPath(
   tree: readonly FileTreeNode[],
@@ -116,25 +121,58 @@ function EditorBreadcrumbs({
   );
 }
 
-export function EditorArea({ editor, requestClose, tree, rootPath }: EditorAreaProps) {
-  const { tabs, activePath, content, contentLoading, saveContent, markDirty, breadcrumbs, gitChanges } = editor;
+// --- Single editor pane (breadcrumbs + Monaco + empty state) ---
 
+type EditorPaneProps = {
+  readonly activePath: string | undefined;
+  readonly content: string | undefined;
+  readonly contentLoading: boolean;
+  readonly breadcrumbs: readonly string[];
+  readonly gitChanges: readonly LineChange[];
+  readonly tree: readonly FileTreeNode[];
+  readonly rootPath: string;
+  readonly fontSize: number;
+  readonly tabSize: number;
+  readonly isFocused: boolean;
+  readonly onSave: (path: string, content: string) => Promise<void>;
+  readonly onChange: (path: string, content: string) => void;
+  readonly onOpenFile: (path: string, line: number, column: number) => void;
+  readonly onViewCreated: (path: string, editor: monacoEditor.IStandaloneCodeEditor) => void;
+  readonly onViewDestroyed: (path: string) => void;
+  readonly onFocus: () => void;
+};
+
+function EditorPane({
+  activePath,
+  content,
+  contentLoading,
+  breadcrumbs,
+  gitChanges,
+  tree,
+  rootPath,
+  fontSize,
+  tabSize,
+  isFocused,
+  onSave,
+  onChange,
+  onOpenFile,
+  onViewCreated,
+  onViewDestroyed,
+  onFocus,
+}: EditorPaneProps) {
   return (
-    <div className="flex h-full flex-col">
-      <EditorTabs
-        tabs={tabs}
-        onSelect={editor.select}
-        onClose={requestClose}
-        onCloseOthers={editor.closeOthers}
-        onCloseAll={editor.closeAll}
-        onCloseSaved={editor.closeSaved}
-        onReorder={editor.reorderTabs}
-      />
+    <div
+      className={`flex h-full flex-col ${isFocused ? "border-t-2 border-primary/40" : "border-t-2 border-transparent"}`}
+      onClick={onFocus}
+    >
       <EditorBreadcrumbs
         segments={breadcrumbs}
         tree={tree}
         rootPath={rootPath}
-        onFileSelect={editor.open}
+        onFileSelect={(path) => {
+          onFocus();
+          onOpenFile(path, 1, 1);
+        }}
       />
       <div className="flex-1 overflow-hidden">
         {activePath !== undefined && content !== undefined && !contentLoading ? (
@@ -144,13 +182,13 @@ export function EditorArea({ editor, requestClose, tree, rootPath }: EditorAreaP
             content={content}
             ext={extFromPath(activePath)}
             gitChanges={gitChanges}
-            onSave={saveContent}
-            onChange={markDirty}
-            onOpenFile={editor.openAt}
-            fontSize={editor.fontSize}
-            tabSize={editor.tabSize}
-            onViewCreated={editor.setEditorInstance}
-            onViewDestroyed={() => editor.setEditorInstance(null)}
+            onSave={(text) => onSave(activePath, text)}
+            onChange={(text) => onChange(activePath, text)}
+            onOpenFile={onOpenFile}
+            fontSize={fontSize}
+            tabSize={tabSize}
+            onViewCreated={(ed) => onViewCreated(activePath, ed)}
+            onViewDestroyed={() => onViewDestroyed(activePath)}
           />
         ) : activePath !== undefined && contentLoading ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
@@ -161,6 +199,94 @@ export function EditorArea({ editor, requestClose, tree, rootPath }: EditorAreaP
             <Code className="size-8 opacity-50" />
             <span className="text-sm">Select a file to edit</span>
           </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// --- Resize handle for split panes ---
+
+function SplitResizeHandle() {
+  return (
+    <Separator
+      className="group relative w-px bg-border transition-colors data-[active]:bg-primary"
+    >
+      <div className="absolute inset-y-0 -left-1 -right-1 cursor-col-resize touch-none" />
+    </Separator>
+  );
+}
+
+// --- Main editor area ---
+
+export function EditorArea({ editor, requestClose, tree, rootPath }: EditorAreaProps) {
+  const isSplit = editor.rightActivePath !== undefined;
+
+  const paneProps = {
+    tree,
+    rootPath,
+    fontSize: editor.fontSize,
+    tabSize: editor.tabSize,
+    onSave: editor.saveContent,
+    onChange: editor.markDirty,
+    onOpenFile: editor.openAt,
+    onViewCreated: (path: string, ed: monacoEditor.IStandaloneCodeEditor) => editor.setEditorInstance(path, ed),
+    onViewDestroyed: (path: string) => editor.setEditorInstance(path, null),
+  } as const;
+
+  return (
+    <div className="flex h-full flex-col">
+      <EditorTabs
+        tabs={editor.tabs}
+        onSelect={editor.select}
+        onClose={requestClose}
+        onCloseOthers={editor.closeOthers}
+        onCloseAll={editor.closeAll}
+        onCloseSaved={editor.closeSaved}
+        onReorder={editor.reorderTabs}
+        onSplitRight={editor.splitRight}
+        isSplit={isSplit}
+      />
+      <div className="flex-1 overflow-hidden">
+        {isSplit ? (
+          <Group orientation="horizontal" style={{ height: "100%" }}>
+            <Panel defaultSize={50} minSize={20}>
+              <EditorPane
+                activePath={editor.activePath}
+                content={editor.content}
+                contentLoading={editor.contentLoading}
+                breadcrumbs={editor.breadcrumbs}
+                gitChanges={editor.gitChanges}
+                isFocused={editor.focusedPane === "left"}
+                onFocus={() => editor.setFocusedPane("left")}
+                {...paneProps}
+              />
+            </Panel>
+            <SplitResizeHandle />
+            <Panel defaultSize={50} minSize={20}>
+              <EditorPane
+                activePath={editor.rightActivePath}
+                content={editor.rightContent}
+                contentLoading={editor.rightContentLoading}
+                breadcrumbs={editor.rightBreadcrumbs}
+                gitChanges={editor.rightGitChanges}
+                isFocused={editor.focusedPane === "right"}
+                onFocus={() => editor.setFocusedPane("right")}
+                {...paneProps}
+              />
+            </Panel>
+          </Group>
+        ) : (
+          <EditorPane
+            activePath={editor.activePath}
+            content={editor.content}
+            contentLoading={editor.contentLoading}
+            breadcrumbs={editor.breadcrumbs}
+            gitChanges={editor.gitChanges}
+            isFocused
+            onFocus={() => {}}
+            {...paneProps}
+          />
         )}
       </div>
     </div>

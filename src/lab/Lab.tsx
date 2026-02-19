@@ -56,7 +56,10 @@ export function Lab({ manifest, workspacePath, nav }: LabProps) {
       { id: "new-terminal", label: "New Terminal", shortcut: "Mod+Shift+`", execute: () => { lab.terminal.spawn(); } },
       { id: "run-tests", label: "Run Tests", execute: () => { lab.test.run(); } },
       { id: "shortcuts", label: "Keyboard Shortcuts", shortcut: "Mod+/", execute: () => lab.ui.setShortcutsVisible(true) },
-      { id: "close-tab", label: "Close Tab", shortcut: "Mod+W", execute: () => { if (lab.editor.activePath !== undefined) lab.ui.requestClose(lab.editor.activePath); } },
+      { id: "close-tab", label: "Close Tab", shortcut: "Mod+W", execute: () => {
+        const path = lab.editor.focusedPane === "right" ? lab.editor.rightActivePath : lab.editor.activePath;
+        if (path !== undefined) lab.ui.requestClose(path);
+      }},
       { id: "save-file", label: "Save File", shortcut: "Mod+S", execute: () => { if (lab.editor.activePath !== undefined) lab.editor.save(); } },
       { id: "exec-service", label: "Exec into Service", execute: () => { if (lab.services.selected !== undefined) lab.services.onExec(lab.services.selected); } },
       { id: "show-services", label: "Show Services", execute: () => useSettingsStore.getState().setSidebarPanel("services") },
@@ -85,6 +88,14 @@ export function Lab({ manifest, workspacePath, nav }: LabProps) {
       }},
       { id: "close-all-tabs", label: "Close All Tabs", execute: () => lab.editor.closeAll() },
       { id: "close-saved-tabs", label: "Close Saved Tabs", execute: () => lab.editor.closeSaved() },
+      { id: "split-right", label: "Split Editor Right", shortcut: "Mod+\\", execute: () => {
+        if (lab.editor.activePath !== undefined) lab.editor.splitRight(lab.editor.activePath);
+      }},
+      { id: "close-split", label: "Close Split Editor", execute: () => lab.editor.closeSplit() },
+      { id: "focus-left-pane", label: "Focus Left Editor", shortcut: "Mod+1", execute: () => lab.editor.setFocusedPane("left") },
+      { id: "focus-right-pane", label: "Focus Right Editor", shortcut: "Mod+2", execute: () => {
+        if (lab.editor.rightActivePath !== undefined) lab.editor.setFocusedPane("right");
+      }},
     ],
     [lab.terminal, lab.ui, lab.editor, lab.test, lab.services],
   );

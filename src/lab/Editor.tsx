@@ -346,12 +346,12 @@ export function Editor({
   }, [gitChanges]);
 
   return (
-    <div className="flex h-full w-full flex-col overflow-hidden">
-      <div ref={containerRef} className="flex-1 overflow-hidden" />
+    <div className="relative h-full w-full overflow-hidden">
+      <div ref={containerRef} className="h-full w-full" />
       {vimMode ? (
         <div
           ref={vimBarRef}
-          className="vim-status-bar flex h-6 shrink-0 items-center border-t border-border bg-background px-3 font-mono text-xs text-foreground"
+          className="vim-status-bar absolute inset-x-0 bottom-0 z-10 flex h-6 items-center border-t border-border bg-background px-3 font-mono text-xs text-foreground"
         />
       ) : null}
     </div>

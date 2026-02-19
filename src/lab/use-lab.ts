@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef } from "react";
 import type { editor as monacoEditor } from "monaco-editor";
 import { useStore } from "zustand";
-import { createLabStore, type CloseConfirmState } from "@/lab/store";
+import { createLabStore, type CloseConfirmState, type FocusedPane } from "@/lab/store";
 import { useFileTree } from "@/lab/use-file-tree";
 import { useTerminals } from "@/lab/use-terminals";
 import { useFile } from "@/lab/use-file";
@@ -39,6 +39,7 @@ export type EditorTabView = {
   readonly iconColor: string;
   readonly dirty: boolean;
   readonly active: boolean;
+  readonly pane: "left" | "right" | undefined;
 };
 
 export type TerminalTabView = {
@@ -65,6 +66,12 @@ export type LabEditorSlice = {
   readonly contentLoading: boolean;
   readonly breadcrumbs: readonly string[];
   readonly gitChanges: readonly LineChange[];
+  readonly rightActivePath: string | undefined;
+  readonly rightContent: string | undefined;
+  readonly rightContentLoading: boolean;
+  readonly rightBreadcrumbs: readonly string[];
+  readonly rightGitChanges: readonly LineChange[];
+  readonly focusedPane: FocusedPane;
   readonly fontSize: number;
   readonly tabSize: number;
   readonly vimMode: boolean;
@@ -72,15 +79,18 @@ export type LabEditorSlice = {
   readonly close: (path: string) => void;
   readonly select: (path: string) => void;
   readonly save: () => Promise<void>;
-  readonly saveContent: (content: string) => Promise<void>;
-  readonly markDirty: (content: string) => void;
+  readonly saveContent: (path: string, content: string) => Promise<void>;
+  readonly markDirty: (path: string, content: string) => void;
   readonly closeOthers: (path: string) => void;
   readonly closeAll: () => void;
   readonly closeSaved: () => void;
   readonly reorderTabs: (oldIndex: number, newIndex: number) => void;
   readonly goToLine: (line: number) => void;
   readonly openAt: (path: string, line: number, column: number) => void;
-  readonly setEditorInstance: (editor: monacoEditor.IStandaloneCodeEditor | null) => void;
+  readonly setEditorInstance: (path: string, editor: monacoEditor.IStandaloneCodeEditor | null) => void;
+  readonly splitRight: (path: string) => void;
+  readonly closeSplit: () => void;
+  readonly setFocusedPane: (pane: FocusedPane) => void;
 };
 
 export type LabTerminalSlice = {
@@ -202,24 +212,31 @@ export function useLab(manifest: ParsedLab, workspacePath: string): Lab {
   // File CRUD with automatic cache invalidation
   const fileOps = useFileOps(workspacePath);
 
-  // Active file content via React Query
-  const { content, save: saveFile, loading: contentLoading } = useFile(
-    state.activePath,
-  );
+  // Active file content via React Query — one per pane
+  const { content, save: saveFileLeft, loading: contentLoading } = useFile(state.activePath);
+  const { content: rightContent, save: saveFileRight, loading: rightContentLoading } = useFile(state.rightActivePath);
 
-  // Live editor content — updated on every CodeMirror doc change.
-  // Reads from here are always current; React Query cache may lag.
-  const liveContentRef = useRef<string | undefined>(undefined);
+  // Live editor content — keyed by file path, both panes write here.
+  const liveContentMap = useRef(new Map<string, string>());
 
-  // Monaco editor ref for imperative operations (goToLine, search navigation)
-  const editorInstanceRef = useRef<monacoEditor.IStandaloneCodeEditor | null>(null);
+  // Monaco editor instances — keyed by file path, each pane registers here.
+  const editorInstanceMap = useRef(new Map<string, monacoEditor.IStandaloneCodeEditor>());
 
-  const setEditorInstance = useCallback((ed: monacoEditor.IStandaloneCodeEditor | null) => {
-    editorInstanceRef.current = ed;
+  const setEditorInstance = useCallback((path: string, ed: monacoEditor.IStandaloneCodeEditor | null) => {
+    if (ed) {
+      editorInstanceMap.current.set(path, ed);
+    } else {
+      editorInstanceMap.current.delete(path);
+    }
   }, []);
 
+  // Resolve the focused pane's active path
+  const focusedPath = state.focusedPane === "right" ? state.rightActivePath : state.activePath;
+
   const goToLine = useCallback((line: number) => {
-    const ed = editorInstanceRef.current;
+    const path = focusedPath;
+    if (!path) return;
+    const ed = editorInstanceMap.current.get(path);
     if (!ed) return;
     const model = ed.getModel();
     if (!model) return;
@@ -227,14 +244,12 @@ export function useLab(manifest: ParsedLab, workspacePath: string): Lab {
     ed.setPosition({ lineNumber: clamped, column: 1 });
     ed.revealLineInCenter(clamped);
     ed.focus();
-  }, []);
+  }, [focusedPath]);
 
-  // Navigate to a specific file + line + column (used by go-to-definition and diagnostics)
   const openAt = useCallback((path: string, line: number, column: number) => {
     state.openFile(path);
-    // Editor remounts on path change (key={activePath}), so defer cursor positioning
     requestAnimationFrame(() => {
-      const ed = editorInstanceRef.current;
+      const ed = editorInstanceMap.current.get(path);
       if (!ed) return;
       const model = ed.getModel();
       if (!model) return;
@@ -256,8 +271,9 @@ export function useLab(manifest: ParsedLab, workspacePath: string): Lab {
     enabled: lifecycle.kind === "ready" && devContainer !== undefined,
   });
 
-  // Git gutter markers for active file
+  // Git gutter markers — one per pane
   const gitChanges = useGitDiff(state.activePath, workspacePath);
+  const rightGitChanges = useGitDiff(state.rightActivePath, workspacePath);
 
   // Editor settings from persisted store
   const { vimMode, fontSize, tabSize } = useSettingsStore((s) => s.editor);
@@ -296,11 +312,14 @@ export function useLab(manifest: ParsedLab, workspacePath: string): Lab {
   // --- Pre-computed view data ---
 
   const editorTabs: readonly EditorTabView[] = useMemo(() => {
-    const { openPaths, activePath, dirtyPaths } = state;
+    const { openPaths, activePath, rightActivePath, dirtyPaths } = state;
     return openPaths.map((path) => {
       const name = nameFromPath(path);
       const ext = extFromName(name);
       const { icon, color } = getFileIcon(name, ext);
+      const pane = path === activePath ? "left" as const
+        : path === rightActivePath ? "right" as const
+        : undefined;
       return {
         path,
         name,
@@ -308,14 +327,20 @@ export function useLab(manifest: ParsedLab, workspacePath: string): Lab {
         icon,
         iconColor: color,
         dirty: dirtyPaths.has(path),
-        active: path === activePath,
+        active: path === activePath || path === rightActivePath,
+        pane,
       };
     });
-  }, [state.openPaths, state.activePath, state.dirtyPaths]);
+  }, [state.openPaths, state.activePath, state.rightActivePath, state.dirtyPaths]);
 
   const breadcrumbs = useMemo(
     () => breadcrumbsFromPath(state.activePath, workspacePath),
     [state.activePath, workspacePath],
+  );
+
+  const rightBreadcrumbs = useMemo(
+    () => breadcrumbsFromPath(state.rightActivePath, workspacePath),
+    [state.rightActivePath, workspacePath],
   );
 
   const terminalTabs: readonly TerminalTabView[] = useMemo(
@@ -328,46 +353,61 @@ export function useLab(manifest: ParsedLab, workspacePath: string): Lab {
     [state.terminalTabs, state.activeTerminalId],
   );
 
+  // Resolve the save function for a given path (routes to correct pane's React Query).
+  const saveToDisk = useCallback(
+    async (path: string, text: string) => {
+      if (path === state.activePath) {
+        await saveFileLeft(text);
+      } else if (path === state.rightActivePath) {
+        await saveFileRight(text);
+      }
+    },
+    [state.activePath, state.rightActivePath, saveFileLeft, saveFileRight],
+  );
+
   // Writes the given content to disk and clears dirty state.
   const saveContent = useCallback(
-    async (text: string) => {
-      if (state.activePath === undefined) return;
-      await saveFile(text);
-      liveContentRef.current = text;
-      state.markClean(state.activePath);
+    async (path: string, text: string) => {
+      await saveToDisk(path, text);
+      liveContentMap.current.set(path, text);
+      state.markClean(path);
     },
-    [state.activePath, saveFile, state.markClean],
+    [saveToDisk, state.markClean],
   );
 
-  // Saves the live CodeMirror content (for external callers that don't have the text).
+  // Saves the focused pane's live content.
   const save = useCallback(
     async () => {
-      const toSave = liveContentRef.current ?? content;
+      const path = focusedPath;
+      if (!path) return;
+      const cached = path === state.activePath ? content : rightContent;
+      const toSave = liveContentMap.current.get(path) ?? cached;
       if (toSave === undefined) return;
-      await saveContent(toSave);
+      await saveContent(path, toSave);
     },
-    [content, saveContent],
+    [focusedPath, state.activePath, content, rightContent, saveContent],
   );
 
-  // Captures live CodeMirror content and marks the file dirty.
-  const markDirty = useCallback((liveContent: string) => {
-    liveContentRef.current = liveContent;
-    if (state.activePath !== undefined) state.markDirty(state.activePath);
-  }, [state.activePath, state.markDirty]);
+  // Captures live editor content and marks the file dirty.
+  const markDirty = useCallback((path: string, liveContent: string) => {
+    liveContentMap.current.set(path, liveContent);
+    state.markDirty(path);
+  }, [state.markDirty]);
 
   // Composed: save the file being prompted about, then close it.
-  // Uses liveContentRef to get current editor content (not stale cache).
   const confirmSaveAndClose = useCallback(async () => {
     const { closeConfirm } = state;
     if (closeConfirm.kind !== "prompting") return;
-    const toSave = liveContentRef.current ?? content;
+    const { path } = closeConfirm;
+    const cached = path === state.activePath ? content : rightContent;
+    const toSave = liveContentMap.current.get(path) ?? cached;
     if (toSave !== undefined) {
-      await saveFile(toSave);
-      state.markClean(closeConfirm.path);
+      await saveToDisk(path, toSave);
+      state.markClean(path);
     }
-    state.closeFile(closeConfirm.path);
+    state.closeFile(path);
     state.cancelClose();
-  }, [state.closeConfirm, content, saveFile, state.markClean, state.closeFile, state.cancelClose]);
+  }, [state.closeConfirm, state.activePath, content, rightContent, saveToDisk, state.markClean, state.closeFile, state.cancelClose]);
 
   return {
     files: {
@@ -385,6 +425,12 @@ export function useLab(manifest: ParsedLab, workspacePath: string): Lab {
       contentLoading,
       breadcrumbs,
       gitChanges,
+      rightActivePath: state.rightActivePath,
+      rightContent,
+      rightContentLoading,
+      rightBreadcrumbs,
+      rightGitChanges,
+      focusedPane: state.focusedPane,
       fontSize,
       tabSize,
       vimMode,
@@ -401,6 +447,9 @@ export function useLab(manifest: ParsedLab, workspacePath: string): Lab {
       goToLine,
       openAt,
       setEditorInstance,
+      splitRight: state.splitRight,
+      closeSplit: state.closeSplit,
+      setFocusedPane: state.setFocusedPane,
     },
     terminal: {
       tabs: terminalTabs,

@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { X, Columns2 } from "lucide-react";
 import { DragDropProvider, DragOverlay } from "@dnd-kit/react";
 import { useSortable } from "@dnd-kit/react/sortable";
 import {
@@ -18,9 +18,11 @@ type EditorTabsProps = {
   readonly onCloseAll: () => void;
   readonly onCloseSaved: () => void;
   readonly onReorder: (oldIndex: number, newIndex: number) => void;
+  readonly onSplitRight: (path: string) => void;
+  readonly isSplit: boolean;
 };
 
-export function EditorTabs({ tabs, onSelect, onClose, onCloseOthers, onCloseAll, onCloseSaved, onReorder }: EditorTabsProps) {
+export function EditorTabs({ tabs, onSelect, onClose, onCloseOthers, onCloseAll, onCloseSaved, onReorder, onSplitRight, isSplit }: EditorTabsProps) {
   if (tabs.length === 0) return null;
 
   return (
@@ -48,6 +50,8 @@ export function EditorTabs({ tabs, onSelect, onClose, onCloseOthers, onCloseAll,
             onCloseOthers={onCloseOthers}
             onCloseAll={onCloseAll}
             onCloseSaved={onCloseSaved}
+            onSplitRight={onSplitRight}
+            isSplit={isSplit}
           />
         ))}
       </div>
@@ -77,6 +81,8 @@ function SortableTab({
   onCloseOthers,
   onCloseAll,
   onCloseSaved,
+  onSplitRight,
+  isSplit,
 }: {
   readonly tab: EditorTabView;
   readonly index: number;
@@ -85,6 +91,8 @@ function SortableTab({
   readonly onCloseOthers: (path: string) => void;
   readonly onCloseAll: () => void;
   readonly onCloseSaved: () => void;
+  readonly onSplitRight: (path: string) => void;
+  readonly isSplit: boolean;
 }) {
   const { ref, isDragging } = useSortable({ id: tab.path, index });
   const Icon = tab.icon;
@@ -101,6 +109,9 @@ function SortableTab({
         <span>{tab.name}</span>
         {tab.dirty ? (
           <span className="size-1.5 shrink-0 rounded-full bg-primary" />
+        ) : null}
+        {isSplit && tab.pane === "right" ? (
+          <span className="ml-0.5 text-[9px] leading-none text-muted-foreground">2</span>
         ) : null}
         <span
           role="button"
@@ -122,11 +133,17 @@ function SortableTab({
         </span>
       </ContextMenuTrigger>
       <ContextMenuContent>
-        <ContextMenuItem onSelect={() => onClose(tab.path)}>Close</ContextMenuItem>
-        <ContextMenuItem onSelect={() => onCloseOthers(tab.path)}>Close Others</ContextMenuItem>
+        <ContextMenuItem onClick={() => onClose(tab.path)}>Close</ContextMenuItem>
+        <ContextMenuItem onClick={() => onCloseOthers(tab.path)}>Close Others</ContextMenuItem>
         <ContextMenuSeparator />
-        <ContextMenuItem onSelect={onCloseAll}>Close All</ContextMenuItem>
-        <ContextMenuItem onSelect={onCloseSaved}>Close Saved</ContextMenuItem>
+        {tab.pane !== "right" ? (
+          <ContextMenuItem onClick={() => onSplitRight(tab.path)}>
+            <Columns2 className="size-3.5" />
+            Open to the Side
+          </ContextMenuItem>
+        ) : null}
+        <ContextMenuItem onClick={onCloseAll}>Close All</ContextMenuItem>
+        <ContextMenuItem onClick={onCloseSaved}>Close Saved</ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
   );

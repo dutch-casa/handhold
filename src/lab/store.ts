@@ -26,12 +26,19 @@ export type CloseConfirmState = CloseConfirmIdle | CloseConfirmPrompting;
 //   I2: dirtyPaths ⊆ openPaths
 //   I3: activeTerminalId ∈ terminalTabs.map(id) ∨ activeTerminalId = undefined
 //   I4: lifecycle.lab is referentially stable (set once at construction)
+//   I5: rightActivePath ∈ openPaths ∨ rightActivePath = undefined
+//   I6: focusedPane = "right" ⟹ rightActivePath ≠ undefined
+//   I7: rightActivePath ≠ activePath (same file cannot be in both panes)
+
+export type FocusedPane = "left" | "right";
 
 type LabStoreState = {
   readonly provisioningLog: readonly string[];
   readonly entries: readonly FsEntry[];
   readonly openPaths: readonly string[];
   readonly activePath: string | undefined;
+  readonly rightActivePath: string | undefined;
+  readonly focusedPane: FocusedPane;
   readonly dirtyPaths: ReadonlySet<string>;
   readonly terminalTabs: readonly TerminalTab[];
   readonly activeTerminalId: string | undefined;
@@ -75,6 +82,10 @@ type LabStoreActions = {
   setGoToLineOpen: (open: boolean) => void;
   reorderTabs: (oldIndex: number, newIndex: number) => void;
   reorderTerminals: (oldIndex: number, newIndex: number) => void;
+  splitRight: (path: string) => void;
+  closeSplit: () => void;
+  setFocusedPane: (pane: FocusedPane) => void;
+  setRightActivePath: (path: string) => void;
   closeOthers: (path: string) => void;
   closeAll: () => void;
   closeSaved: () => void;
@@ -92,6 +103,8 @@ function initialState(_lab: ParsedLab): LabStoreState {
     entries: [],
     openPaths: [],
     activePath: undefined,
+    rightActivePath: undefined,
+    focusedPane: "left",
     dirtyPaths: new Set(),
     terminalTabs: [],
     activeTerminalId: undefined,
@@ -119,41 +132,81 @@ export function createLabStore(lab: ParsedLab) {
 
     setEntries: (entries) => set({ entries }),
 
-    // { true } openFile(p) { p ∈ openPaths ∧ activePath = p }
-    // Idempotent: re-opening an existing tab just activates it.
+    // { true } openFile(p) { p ∈ openPaths ∧ focused pane activePath = p }
+    // Routes to right pane when split is active and focused pane is right.
+    // Enforces I7: if p is already active in the other pane, focus that pane instead.
     openFile: (path) => {
-      const { openPaths } = get();
-      if (openPaths.includes(path)) {
-        set({ activePath: path });
+      const { openPaths, rightActivePath, focusedPane, activePath } = get();
+      const inList = openPaths.includes(path);
+      const nextOpen = inList ? openPaths : [...openPaths, path];
+
+      // I7: can't have same file in both panes — if it's in the other pane, just focus there
+      if (rightActivePath !== undefined && path === rightActivePath && focusedPane === "left") {
+        set({ openPaths: nextOpen, focusedPane: "right" });
         return;
       }
-      set({ openPaths: [...openPaths, path], activePath: path });
+      if (rightActivePath !== undefined && path === activePath && focusedPane === "right") {
+        set({ openPaths: nextOpen, focusedPane: "left" });
+        return;
+      }
+
+      if (rightActivePath !== undefined && focusedPane === "right") {
+        set({ openPaths: nextOpen, rightActivePath: path });
+      } else {
+        set({ openPaths: nextOpen, activePath: path });
+      }
     },
 
-    // { p ∈ openPaths } closeFile(p) { p ∉ openPaths ∧ p ∉ dirtyPaths
-    //   ∧ (activePath was p ⟹ activePath = prev_tab ∨ undefined)
-    //   ∧ (activePath was not p ⟹ activePath unchanged) }
-    // Active tab selection: prefer the tab to the left (index - 1),
-    // clamped to 0. If no tabs remain, activePath becomes undefined.
+    // { p ∈ openPaths } closeFile(p) { p ∉ openPaths ∧ p ∉ dirtyPaths }
+    // Handles split: closing the right pane's file clears the split (I5, I6).
     closeFile: (path) => {
-      const { openPaths, activePath, dirtyPaths } = get();
+      const { openPaths, activePath, rightActivePath, dirtyPaths } = get();
       const next = openPaths.filter((p) => p !== path);
       const nextDirty = new Set(dirtyPaths);
       nextDirty.delete(path);
+
+      // I5: if right pane's file is closed, close the split
+      const nextRight = rightActivePath === path ? undefined : rightActivePath;
+      // I6: if split is gone, focus must return to left
+      const nextFocused = nextRight === undefined ? "left" as const : get().focusedPane;
 
       const nextActive =
         activePath === path
           ? (next[Math.max(0, openPaths.indexOf(path) - 1)] ?? undefined)
           : activePath;
 
+      // I7: if nextActive equals nextRight, clear the right pane
+      const finalRight = nextRight !== undefined && nextRight === nextActive ? undefined : nextRight;
+      const finalFocused = finalRight === undefined ? "left" as const : nextFocused;
+
       set({
         openPaths: next,
         activePath: nextActive,
+        rightActivePath: finalRight,
+        focusedPane: finalFocused,
         dirtyPaths: nextDirty,
       });
     },
 
-    setActiveFile: (path) => set({ activePath: path }),
+    // Routes to focused pane. Enforces I7.
+    setActiveFile: (path) => {
+      const { rightActivePath, focusedPane, activePath } = get();
+      if (rightActivePath !== undefined && focusedPane === "right") {
+        // I7: can't set right to same as left
+        if (path === activePath) {
+          set({ focusedPane: "left" });
+        } else {
+          set({ rightActivePath: path });
+        }
+      } else {
+        // I7: can't set left to same as right
+        if (path === rightActivePath) {
+          set({ focusedPane: "right" });
+        } else {
+          set({ activePath: path });
+        }
+      }
+    },
     markDirty: (path) => {
       const next = new Set(get().dirtyPaths);
       next.add(path);
@@ -248,29 +301,66 @@ export function createLabStore(lab: ParsedLab) {
       }
     },
 
-    // { path ∈ openPaths ∧ path ≠ p } closeOthers(p) {
-    //   openPaths = [p], activePath = p, dirtyPaths ∩ {p} }
     closeOthers: (path) => {
       const { dirtyPaths } = get();
       const nextDirty = new Set<string>();
       if (dirtyPaths.has(path)) nextDirty.add(path);
-      set({ openPaths: [path], activePath: path, dirtyPaths: nextDirty });
+      set({ openPaths: [path], activePath: path, rightActivePath: undefined, focusedPane: "left", dirtyPaths: nextDirty });
     },
 
-    // { true } closeAll() { openPaths = [], activePath = undefined, dirtyPaths = ∅ }
     closeAll: () => {
-      set({ openPaths: [], activePath: undefined, dirtyPaths: new Set() });
+      set({ openPaths: [], activePath: undefined, rightActivePath: undefined, focusedPane: "left", dirtyPaths: new Set() });
     },
 
-    // { true } closeSaved() {
-    //   openPaths = openPaths ∩ dirtyPaths, activePath adjusted }
     closeSaved: () => {
-      const { openPaths, activePath, dirtyPaths } = get();
+      const { openPaths, activePath, rightActivePath, dirtyPaths } = get();
       const nextOpen = openPaths.filter((p) => dirtyPaths.has(p));
       const nextActive = activePath !== undefined && dirtyPaths.has(activePath)
         ? activePath
         : (nextOpen[0] ?? undefined);
-      set({ openPaths: nextOpen, activePath: nextActive });
+      const nextRight = rightActivePath !== undefined && nextOpen.includes(rightActivePath)
+        ? rightActivePath
+        : undefined;
+      // I7: if both resolved to the same path, clear right
+      const finalRight = nextRight !== undefined && nextRight === nextActive ? undefined : nextRight;
+      set({ openPaths: nextOpen, activePath: nextActive, rightActivePath: finalRight, focusedPane: finalRight === undefined ? "left" : get().focusedPane });
+    },
+
+    // --- Split editor actions ---
+
+    // { true } splitRight(p) { rightActivePath = p ∧ focusedPane = "right" ∧ p ∈ openPaths }
+    // Enforces I7: if p is already activePath, swap it out of left first.
+    splitRight: (path) => {
+      const { openPaths, activePath } = get();
+      const nextOpen = openPaths.includes(path) ? openPaths : [...openPaths, path];
+
+      if (path === activePath) {
+        // Move it to the right pane; left gets the previous neighbor
+        const idx = nextOpen.indexOf(path);
+        const nextLeft = nextOpen.filter((p) => p !== path);
+        const leftActive = nextLeft[Math.max(0, idx - 1)] ?? undefined;
+        set({ openPaths: nextOpen, activePath: leftActive, rightActivePath: path, focusedPane: "right" });
+      } else {
+        set({ openPaths: nextOpen, rightActivePath: path, focusedPane: "right" });
+      }
+    },
+
+    closeSplit: () => {
+      set({ rightActivePath: undefined, focusedPane: "left" });
+    },
+
+    // I6: no-op if no split and pane is "right"
+    setFocusedPane: (pane) => {
+      if (pane === "right" && get().rightActivePath === undefined) return;
+      set({ focusedPane: pane });
+    },
+
+    setRightActivePath: (path) => {
+      const { activePath, openPaths } = get();
+      if (!openPaths.includes(path)) return;
+      // I7: can't be same as left
+      if (path === activePath) return;
+      set({ rightActivePath: path });
     },
 
     // { path ∈ openPaths } promptClose(path) {
