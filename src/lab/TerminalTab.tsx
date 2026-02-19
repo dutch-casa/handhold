@@ -34,6 +34,7 @@ export function TerminalTab({ handle, visible }: TerminalTabProps) {
       cursorBlink: true,
       fontSize: 14,
       fontFamily: "'JetBrainsMonoNL NF', 'JetBrainsMonoNL Nerd Font Mono', 'JetBrainsMonoNL Nerd Font', 'JetBrainsMono Nerd Font Mono', 'JetBrainsMono Nerd Font', 'Symbols Nerd Font Mono', 'JetBrains Mono', 'Fira Code', monospace",
+      // @ts-expect-error -- fontLigatures is supported by xterm-addon-ligatures
       fontLigatures: true,
       theme: {
         background: "#0a0a0a",

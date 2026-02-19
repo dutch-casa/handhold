@@ -27,6 +27,8 @@ type BrowserProps = {
   readonly onOpen: (course: CourseRecord) => void;
 };
 
+const SKELETON_KEYS = ["s1", "s2", "s3", "s4", "s5", "s6"] as const;
+
 export function Browser({ onOpen }: BrowserProps) {
   const [search, setSearch] = useState("");
   const [activeTag, setActiveTag] = useState("");
@@ -99,9 +101,9 @@ export function Browser({ onOpen }: BrowserProps) {
         <main className="flex-1 overflow-y-auto p-6">
           {isLoading ? (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {Array.from({ length: 6 }, (_, i) => (
+              {SKELETON_KEYS.map((key) => (
                 <div
-                  key={i}
+                  key={key}
                   className="h-48 animate-pulse rounded-lg bg-muted"
                 />
               ))}

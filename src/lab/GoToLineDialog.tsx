@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -15,7 +15,6 @@ type GoToLineDialogProps = {
 
 export function GoToLineDialog({ open, onClose, onGoToLine }: GoToLineDialogProps) {
   const [value, setValue] = useState("");
-  const inputRef = useRef<HTMLInputElement | null>(null);
 
   const handleSubmit = useCallback(() => {
     const line = parseInt(value, 10);
@@ -35,12 +34,6 @@ export function GoToLineDialog({ open, onClose, onGoToLine }: GoToLineDialogProp
     [onClose],
   );
 
-  useEffect(() => {
-    if (open) {
-      inputRef.current?.focus();
-    }
-  }, [open]);
-
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-xs gap-3">
@@ -48,7 +41,7 @@ export function GoToLineDialog({ open, onClose, onGoToLine }: GoToLineDialogProp
           <DialogTitle>Go to Line</DialogTitle>
         </DialogHeader>
         <Input
-          ref={inputRef}
+          autoFocus
           type="number"
           min={1}
           placeholder="Line number"

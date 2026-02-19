@@ -3,6 +3,7 @@ import { motion } from "motion/react";
 import type { DataState, SceneAnnotation } from "@/types/lesson";
 import type { Layout } from "./layout-types";
 import { layoutArray } from "./layouts/array-layout";
+import { arrayNodeIds } from "./array-ids";
 import { layoutLinkedList } from "./layouts/linked-list-layout";
 import { layoutBinaryTree } from "./layouts/binary-tree-layout";
 import { layoutGraph } from "./layouts/graph-layout";
@@ -25,7 +26,7 @@ type DataProps = {
   readonly annotations: readonly SceneAnnotation[];
 };
 
-export function Data({ state, focus, flow, pulse, trace, annotations }: DataProps) {
+export function Data({ state, prevState, focus, flow, pulse, trace, annotations }: DataProps) {
   const layout = useMemo(() => computeLayout(state), [state]);
   const prevLayout = useMemo(
     () => (prevState ? computeLayout(prevState) : undefined),
@@ -164,10 +165,22 @@ function layoutGraphByKind(data: import("@/types/lesson").GraphData): Layout {
 function resolveDataRegion(regionName: string, state: DataState): string[] {
   if (regionName.length === 0) return [];
   const ids: string[] = [];
+  const arrayIds = state.data.type === "array" ? arrayNodeIds(state.data.values) : null;
   for (const r of state.regions) {
     if (r.name !== regionName) continue;
     for (const segment of r.target.split(",")) {
-      ids.push(segment.trim());
+      const raw = segment.trim();
+      if (arrayIds) {
+        const idx = Number(raw);
+        if (Number.isFinite(idx) && idx >= 0 && idx < arrayIds.length) {
+          const mapped = arrayIds[idx];
+          if (mapped) {
+            ids.push(mapped);
+            continue;
+          }
+        }
+      }
+      ids.push(raw);
     }
   }
   return ids;

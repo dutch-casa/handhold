@@ -11,6 +11,7 @@ const KEYS = {
   byTag: (t: string) => ["courses-by-tag", t] as const,
   progress: (id: string) => ["step-progress", id] as const,
   slidePosition: (id: string, step: number) => ["slide-position", id, step] as const,
+  slideCompletions: (id: string, step: number) => ["slide-completions", id, step] as const,
   labData: (id: string, path: string) => ["lab-data", id, path] as const,
 } as const;
 
@@ -108,6 +109,7 @@ export function useSlidePosition(courseId: string, stepIndex: number) {
 }
 
 export function useSaveSlidePosition() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: ({
       courseId,
@@ -120,6 +122,38 @@ export function useSaveSlidePosition() {
       slideIndex: number;
       slideCount: number | null;
     }) => api.slidePositionSave(courseId, stepIndex, slideIndex, slideCount),
+    onSuccess: (_, { courseId, stepIndex, slideIndex, slideCount }) => {
+      qc.setQueryData(KEYS.slidePosition(courseId, stepIndex), { slideIndex, slideCount });
+    },
+  });
+}
+
+export function useSlideCompletions(courseId: string, stepIndex: number) {
+  return useQuery({
+    queryKey: KEYS.slideCompletions(courseId, stepIndex),
+    queryFn: () => api.slideCompletions(courseId, stepIndex),
+    staleTime: Infinity,
+  });
+}
+
+export function useSaveSlideCompletion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      courseId,
+      stepIndex,
+      slideId,
+    }: {
+      courseId: string;
+      stepIndex: number;
+      slideId: string;
+    }) => api.slideComplete(courseId, stepIndex, slideId),
+    onSuccess: (_, { courseId, stepIndex, slideId }) => {
+      qc.setQueryData<string[]>(
+        KEYS.slideCompletions(courseId, stepIndex),
+        (prev) => prev ? [...prev, slideId] : [slideId],
+      );
+    },
   });
 }
 

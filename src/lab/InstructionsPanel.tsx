@@ -54,13 +54,7 @@ function MdBlockView({ block }: { readonly block: MdBlock }) {
       return <Tag className={HEADING_CLASSES[block.level] ?? HEADING_CLASSES[3]}>{block.text}</Tag>;
     }
     case "list":
-      return (
-        <ul className="list-disc pl-4 space-y-0.5">
-          {block.items.map((item, i) => (
-            <li key={i}>{item}</li>
-          ))}
-        </ul>
-      );
+      return <ListItems items={block.items} />;
     case "code":
       return <pre className="bg-muted/50 rounded p-2 text-xs font-mono overflow-x-auto">{block.content}</pre>;
     case "paragraph":
@@ -79,10 +73,36 @@ export function InstructionsPanel({ instructions }: InstructionsPanelProps) {
     <div className="flex h-full flex-col overflow-y-auto ide-scrollbar">
       <div className="ide-section-header border-b border-border">Instructions</div>
       <div className="prose prose-invert prose-sm max-w-none p-3 text-xs leading-relaxed">
-        {blocks.map((block, i) => (
-          <MdBlockView key={i} block={block} />
+        {blocks.map((block) => (
+          <MdBlockView key={blockKey(block)} block={block} />
         ))}
       </div>
     </div>
+  );
+}
+
+function blockKey(block: MdBlock): string {
+  switch (block.kind) {
+    case "heading":
+      return `heading-${block.level}-${block.text}`;
+    case "paragraph":
+      return `paragraph-${block.text}`;
+    case "list":
+      return `list-${block.items.join("|")}`;
+    case "code":
+      return `code-${block.content.slice(0, 24)}`;
+  }
+}
+
+function ListItems({ items }: { readonly items: readonly string[] }) {
+  const counts = new Map<string, number>();
+  return (
+    <ul className="list-disc pl-4 space-y-0.5">
+      {items.map((item) => {
+        const next = (counts.get(item) ?? 0) + 1;
+        counts.set(item, next);
+        return <li key={`${item}-${next}`}>{item}</li>;
+      })}
+    </ul>
   );
 }

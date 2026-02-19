@@ -6,6 +6,16 @@ import type { ParsedLesson, LessonStep, SceneState } from "@/types/lesson";
 
 export type PlaybackStatus = "idle" | "playing" | "paused";
 
+type LoadLessonOpts = {
+  readonly lesson: ParsedLesson;
+  readonly initialStepIndex?: number | undefined;
+  readonly completedSlideIds?: ReadonlySet<string> | undefined;
+  readonly onStepChange?: ((index: number) => void) | undefined;
+  readonly onSlideComplete?: ((slideId: string) => void) | undefined;
+  readonly onLessonComplete?: (() => void) | undefined;
+  readonly bundlePath?: string | undefined;
+};
+
 type PresentationState = {
   readonly lesson: ParsedLesson | null;
   readonly steps: readonly LessonStep[];
@@ -16,11 +26,13 @@ type PresentationState = {
   readonly sceneIndex: number;
   readonly completedStepIds: ReadonlySet<string>;
   readonly onStepChange: ((index: number) => void) | null;
+  readonly onSlideComplete: ((slideId: string) => void) | null;
+  readonly onLessonComplete: (() => void) | null;
   readonly bundlePath: string | undefined;
 };
 
 type PresentationActions = {
-  loadLesson: (lesson: ParsedLesson, initialStepIndex?: number, onStepChange?: (index: number) => void, bundlePath?: string) => void;
+  loadLesson: (opts: LoadLessonOpts) => void;
   play: () => void;
   pause: () => void;
   togglePlayPause: () => void;
@@ -47,24 +59,29 @@ const INITIAL_STATE: PresentationState = {
   sceneIndex: 0,
   completedStepIds: new Set(),
   onStepChange: null,
+  onSlideComplete: null,
+  onLessonComplete: null,
   bundlePath: undefined,
 };
 
 export const usePresentationStore = create<PresentationStore>((set, get) => ({
   ...INITIAL_STATE,
 
-  loadLesson: (lesson, initialStepIndex, onStepChange, bundlePath) =>
+  loadLesson: (opts) => {
     set({
-      lesson,
-      steps: lesson.steps,
-      currentStepIndex: initialStepIndex ?? 0,
+      lesson: opts.lesson,
+      steps: opts.lesson.steps,
+      currentStepIndex: opts.initialStepIndex ?? 0,
       status: "idle",
       currentWordIndex: -1,
       sceneIndex: 0,
-      completedStepIds: new Set(),
-      onStepChange: onStepChange ?? null,
-      bundlePath,
-    }),
+      completedStepIds: opts.completedSlideIds ?? new Set(),
+      onStepChange: opts.onStepChange ?? null,
+      onSlideComplete: opts.onSlideComplete ?? null,
+      onLessonComplete: opts.onLessonComplete ?? null,
+      bundlePath: opts.bundlePath,
+    });
+  },
 
   play: () => set({ status: "playing" }),
 
@@ -85,24 +102,14 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
 
   nextStep: () => {
     const { currentStepIndex, steps, onStepChange } = get();
-    const currentStep = steps[currentStepIndex];
-    if (!currentStep) return;
-
-    const completed = new Set(get().completedStepIds);
-    completed.add(currentStep.id);
-
     const nextIndex = currentStepIndex + 1;
-    if (nextIndex >= steps.length) {
-      set({ completedStepIds: completed });
-      return;
-    }
+    if (nextIndex >= steps.length) return;
 
     set({
       currentStepIndex: nextIndex,
       currentWordIndex: -1,
       sceneIndex: 0,
       status: "idle",
-      completedStepIds: completed,
     });
     onStepChange?.(nextIndex);
   },
@@ -151,9 +158,18 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
   setPlaybackRate: (rate) => set({ playbackRate: rate }),
 
   markStepComplete: (stepId) => {
-    const completed = new Set(get().completedStepIds);
+    const { completedStepIds, steps, onSlideComplete, onLessonComplete } = get();
+    if (completedStepIds.has(stepId)) return;
+
+    const completed = new Set(completedStepIds);
     completed.add(stepId);
     set({ completedStepIds: completed });
+
+    onSlideComplete?.(stepId);
+
+    if (completed.size === steps.length) {
+      onLessonComplete?.();
+    }
   },
 
   reset: () => set(INITIAL_STATE),

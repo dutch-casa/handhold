@@ -986,11 +986,16 @@ When labs build on each other, the final lab becomes a capstone that integrates 
 | Verb | Arguments | Description |
 |------|-----------|-------------|
 | `show` | `target [effect] [duration] [easing]` | Reveal a named block |
+| `show-group` | `target1,target2 [effect] [duration] [easing]` | Reveal multiple blocks at once |
 | `hide` | `target [effect] [duration] [easing]` | Remove a named block |
+| `hide-group` | `target1,target2 [effect] [duration] [easing]` | Remove multiple blocks at once |
 | `clear` | `[transition] [effect] [duration] [easing]` | Reset the stage |
+| `transform` | `from->to [effect] [duration] [easing]` | Morph one block into another |
 | `split` | (none) | Enable multi-panel mode |
 | `unsplit` | (none) | Return to single-panel |
 | `focus` | `target` or `none` | Highlight target, dim everything else |
+| `pulse` | `target` | Emphasize a region without changing focus |
+| `trace` | `target` | Animate a path through edges/connections |
 | `annotate` | `target "text"` | Attach text annotation |
 | `zoom` | `[target] Nx` | Scale visualization |
 
@@ -1013,6 +1018,9 @@ When labs build on each other, the final lab becomes a capstone that integrates 
 | `ease-in-out` | Gentle start and stop | Deliberate, formal |
 | `spring` | Physics-based overshoot | Playful, snappy |
 | `linear` | Constant speed | Typewriter, mechanical |
+| `reveal` | Smooth cinematic reveal | First reveals, dramatic moments |
+| `emphasis` | Punchy overshoot | Drawing attention, key concepts |
+| `handoff` | Calm handoff between scenes | Scene transitions, topic changes |
 
 ### Transition kinds (clear only)
 

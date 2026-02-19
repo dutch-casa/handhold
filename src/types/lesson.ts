@@ -291,7 +291,7 @@ export type PreviewState = {
 
 // --- Chart ---
 
-export type ChartKind = "bar" | "line" | "scatter" | "area";
+export type ChartKind = "bar" | "line" | "scatter" | "area" | "pie" | "radar" | "radial";
 
 export type ChartDataPoint = {
   readonly label: string;

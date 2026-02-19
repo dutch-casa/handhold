@@ -1,5 +1,8 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, Channel } from "@tauri-apps/api/core";
 import type { CourseRecord, CourseManifest, ImportResult, LabData, Route, SlidePosition } from "@/types/browser";
+
+type WatchEvent = { readonly event: "changed" };
+type Disposable = { dispose: () => void };
 
 export const courseImport = (githubUrl: string) =>
   invoke<ImportResult>("course_import", { githubUrl });
@@ -43,6 +46,35 @@ export const courseReadStep = (id: string, stepPath: string) =>
 export const courseReadLab = (id: string, stepPath: string) =>
   invoke<LabData>("course_read_lab", { id, stepPath });
 
+export type SyncResult = { readonly added: number; readonly removed: number };
+
+export const coursesDirPath = () =>
+  invoke<string>("courses_dir_path");
+
+export const courseSync = () =>
+  invoke<SyncResult>("course_sync");
+
+export async function watchDir(
+  path: string,
+  onChange: () => void,
+): Promise<Disposable> {
+  const onEvent = new Channel<WatchEvent>();
+  onEvent.onmessage = () => onChange();
+
+  const watcherId = await invoke<number>("watch_dir", {
+    path,
+    onEvent,
+  });
+
+  return {
+    dispose: () => {
+      invoke("unwatch_dir", { watcherId }).catch(() => {
+        // Best-effort cleanup
+      });
+    },
+  };
+}
+
 export const slidePositionSave = (
   courseId: string,
   stepIndex: number,
@@ -52,3 +84,9 @@ export const slidePositionSave = (
 
 export const slidePositionLoad = (courseId: string, stepIndex: number) =>
   invoke<SlidePosition | null>("slide_position_load", { courseId, stepIndex });
+
+export const slideComplete = (courseId: string, stepIndex: number, slideId: string) =>
+  invoke<void>("slide_complete", { courseId, stepIndex, slideId });
+
+export const slideCompletions = (courseId: string, stepIndex: number) =>
+  invoke<string[]>("slide_completions", { courseId, stepIndex });

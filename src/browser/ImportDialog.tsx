@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { useImportCourse } from "@/browser/use-courses";
 import type { ImportResult } from "@/types/browser";
 import {
@@ -33,8 +33,6 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
   const importMutation = useImportCourse();
-  const inputRef = useRef<HTMLInputElement | null>(null);
-
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
@@ -57,12 +55,6 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
     });
   }
 
-  useEffect(() => {
-    if (open) {
-      inputRef.current?.focus();
-    }
-  }, [open]);
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -75,7 +67,7 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
-            ref={inputRef}
+            autoFocus
             placeholder="https://github.com/owner/repo"
             value={url}
             onChange={(e) => {

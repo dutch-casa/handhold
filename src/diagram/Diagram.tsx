@@ -19,7 +19,7 @@ type DiagramProps = {
   readonly annotations: readonly SceneAnnotation[];
 };
 
-export function Diagram({ state, focus, flow, pulse, trace, annotations }: DiagramProps) {
+export function Diagram({ state, prevState, focus, flow, pulse, trace, annotations }: DiagramProps) {
   const { data: layout } = useQuery<DiagramLayout>({
     queryKey: ["elk-layout", state],
     queryFn: () => layoutDiagramWithElk(state),
@@ -40,7 +40,6 @@ export function Diagram({ state, focus, flow, pulse, trace, annotations }: Diagr
 
   const focusedIds = resolveDiagramRegion(focus, state);
   const pulsedIds = resolveDiagramRegion(pulse, state);
-  const tracedIds = resolveDiagramRegion(trace, state);
 
   const flowingEdgeIds = useMemo(
     () => resolveFlowEdges(flow, state),
@@ -60,6 +59,18 @@ export function Diagram({ state, focus, flow, pulse, trace, annotations }: Diagr
     return [...byTarget.values()];
   }, [annotations]);
 
+  const orderedEdges = useMemo(() => {
+    const edges = layout?.edges ?? [];
+    const edgePriority = (edge: DiagramLayout["edges"][number]) => {
+      const keyA = `${edge.fromId}->${edge.toId}`;
+      const keyB = `${edge.toId}->${edge.fromId}`;
+      if (tracedEdgeIds.has(keyA) || tracedEdgeIds.has(keyB)) return 2;
+      if (flowingEdgeIds.has(keyA) || flowingEdgeIds.has(keyB)) return 1;
+      return 0;
+    };
+    return [...edges].sort((a, b) => edgePriority(a) - edgePriority(b));
+  }, [layout?.edges, tracedEdgeIds, flowingEdgeIds]);
+
   if (!layout || layout.width === 0) return null;
 
   const prevNodeMap = new Map(
@@ -76,7 +87,7 @@ export function Diagram({ state, focus, flow, pulse, trace, annotations }: Diagr
       {layout.groups.map((group) => (
         <DiagramGroupBoundary key={`boundary-${group.name}`} group={group} />
       ))}
-      {layout.edges.map((edge) => (
+      {orderedEdges.map((edge) => (
         <DiagramEdge
           key={edge.id}
           edge={edge}

@@ -20,7 +20,7 @@ function AssertionList({ assertions }: { readonly assertions: readonly TestAsser
   return (
     <div className="flex flex-col gap-1">
       {assertions.map((a) => (
-        <div key={a.index} className="flex items-center gap-2 text-xs">
+        <div key={a.description} className="flex items-center gap-2 text-xs">
           {a.passed ? (
             <CheckCircle2 className="size-3.5 shrink-0 text-green-400" />
           ) : (

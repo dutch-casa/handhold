@@ -106,7 +106,10 @@ export function parseDiagram(
           }
         }
 
-        nodes.push({ id, label: id, nodeType, icon });
+        const def: DiagramNodeDef = icon !== undefined
+          ? { id, label: id, nodeType, icon }
+          : { id, label: id, nodeType };
+        nodes.push(def);
       }
       continue;
     }

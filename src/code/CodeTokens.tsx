@@ -21,11 +21,13 @@ export function CodeTokens({ tokens, dimmed, substringTarget, pointerAnnotation 
 
   const segments = splitTokensAtSubstring(tokens, substringTarget);
 
+  const segmentKeys = buildSegmentKeys(segments);
+
   return (
     <span style={{ flex: 1 }}>
-      {segments.map((seg, i) =>
+      {segments.map((seg, idx) =>
         seg.kind === "match" ? (
-          <span key={segmentKey(seg.tokens, i)} style={{ position: "relative", display: "inline" }}>
+          <span key={segmentKeys[idx]} style={{ position: "relative", display: "inline" }}>
             <span style={{ borderBottom: `2px solid ${colors.accent}`, paddingBottom: 1 }}>
               <TokenRun tokens={seg.tokens} dimmed={false} />
             </span>
@@ -54,7 +56,7 @@ export function CodeTokens({ tokens, dimmed, substringTarget, pointerAnnotation 
             )}
           </span>
         ) : (
-          <span key={segmentKey(seg.tokens, i)}>
+          <span key={segmentKeys[idx]}>
             <TokenRun tokens={seg.tokens} dimmed={dimmed} />
           </span>
         ),
@@ -70,11 +72,12 @@ function TokenRun({
   readonly tokens: readonly ShikiToken[];
   readonly dimmed: boolean;
 }) {
+  const tokenKeys = buildTokenKeys(tokens);
   return (
     <>
-      {tokens.map((token, i) => (
+      {tokens.map((token, idx) => (
         <span
-          key={`${i}-${token.content}-${token.color}`}
+          key={tokenKeys[idx]}
           style={{ color: dimmed ? colors.textDim : token.color }}
         >
           {token.content}
@@ -84,8 +87,22 @@ function TokenRun({
   );
 }
 
-function segmentKey(tokens: readonly ShikiToken[], index: number): string {
-  const first = tokens[0]?.content ?? "";
-  const last = tokens[tokens.length - 1]?.content ?? "";
-  return `${index}-${first}-${last}-${tokens.length}`;
+function buildTokenKeys(tokens: readonly ShikiToken[]): readonly string[] {
+  const counts = new Map<string, number>();
+  return tokens.map((token) => {
+    const signature = `${token.content}-${token.color}`;
+    const next = (counts.get(signature) ?? 0) + 1;
+    counts.set(signature, next);
+    return `${signature}-${next}`;
+  });
+}
+
+function buildSegmentKeys(segments: ReturnType<typeof splitTokensAtSubstring>): readonly string[] {
+  const counts = new Map<string, number>();
+  return segments.map((segment) => {
+    const signature = `${segment.kind}-${segment.tokens[0]?.content ?? ""}-${segment.tokens[segment.tokens.length - 1]?.content ?? ""}-${segment.tokens.length}`;
+    const next = (counts.get(signature) ?? 0) + 1;
+    counts.set(signature, next);
+    return `${signature}-${next}`;
+  });
 }

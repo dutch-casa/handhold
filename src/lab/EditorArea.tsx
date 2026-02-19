@@ -23,20 +23,24 @@ type EditorAreaProps = {
 function EditorBreadcrumbs({ segments }: { readonly segments: readonly string[] }) {
   if (segments.length === 0) return null;
 
+  let acc = "";
   return (
     <div className="flex items-center border-b border-border bg-background px-3 py-1">
       <Breadcrumb>
         <BreadcrumbList>
-          {segments.map((segment, i) => (
-            <BreadcrumbItem key={`${segment}-${i}`}>
-              {i > 0 ? <BreadcrumbSeparator /> : null}
-              {i === segments.length - 1 ? (
+          {segments.map((segment, idx) => {
+            acc = acc ? `${acc}/${segment}` : segment;
+            const isLast = idx === segments.length - 1;
+            return (
+            <BreadcrumbItem key={acc}>
+              {idx > 0 ? <BreadcrumbSeparator /> : null}
+              {isLast ? (
                 <BreadcrumbPage className="text-xs">{segment}</BreadcrumbPage>
               ) : (
                 <span className="text-xs text-muted-foreground">{segment}</span>
               )}
             </BreadcrumbItem>
-          ))}
+          )})}
         </BreadcrumbList>
       </Breadcrumb>
     </div>

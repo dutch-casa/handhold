@@ -4,10 +4,10 @@ import { colors, fonts, fontSizes, radii, spring, fade } from "@/app/theme";
 
 type DataNodeProps = {
   readonly node: PositionedNode;
-  readonly dimmed?: boolean;
-  readonly pulsing?: boolean;
-  readonly initialX?: number;
-  readonly initialY?: number;
+  readonly dimmed?: boolean | undefined;
+  readonly pulsing?: boolean | undefined;
+  readonly initialX?: number | undefined;
+  readonly initialY?: number | undefined;
 };
 
 export function DataNode({

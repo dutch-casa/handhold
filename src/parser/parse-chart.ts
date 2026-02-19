@@ -14,7 +14,7 @@ import { splitContentAndRegions } from "./parse-regions";
 //   Table:  `| x | Series1 | Series2 |` markdown table (multi-series)
 // Decorations: `shade:` and `annotate:` lines after data, before `---`
 
-const VALID_CHART_KINDS = new Set(["bar", "line", "scatter", "area"]);
+const VALID_CHART_KINDS = new Set(["bar", "line", "scatter", "area", "pie", "radar", "radial"]);
 
 export function parseChart(
   text: string,

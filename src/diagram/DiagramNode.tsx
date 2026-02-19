@@ -6,10 +6,10 @@ import { colors, fonts, fontSizes, spring, fade } from "@/app/theme";
 
 type DiagramNodeProps = {
   readonly node: PositionedDiagramNode;
-  readonly dimmed?: boolean;
-  readonly pulsing?: boolean;
-  readonly initialX?: number;
-  readonly initialY?: number;
+  readonly dimmed?: boolean | undefined;
+  readonly pulsing?: boolean | undefined;
+  readonly initialX?: number | undefined;
+  readonly initialY?: number | undefined;
 };
 
 const defaultIconKey = defaultAwsIconKey;
@@ -144,7 +144,7 @@ function awsIconClassName(nodeType: string, iconKey: string | null): string | un
   if (nodeType === "user") {
     return "diagram-aws-icon diagram-aws-icon--user";
   }
-  if (iconKey && /\\busers?\\b/i.test(iconKey)) {
+  if (iconKey && /\busers?\b/i.test(iconKey)) {
     return "diagram-aws-icon diagram-aws-icon--user";
   }
   return "diagram-aws-icon";

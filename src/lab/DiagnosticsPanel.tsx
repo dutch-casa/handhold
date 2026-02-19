@@ -74,8 +74,12 @@ function FileGroup({
         </span>
       </button>
       {expanded
-        ? diagnostics.map((d, i) => (
-            <DiagnosticRow key={i} d={d} onNavigate={onNavigate} />
+        ? diagnostics.map((d) => (
+            <DiagnosticRow
+              key={`${d.path}:${d.line}:${d.column}:${d.message}`}
+              d={d}
+              onNavigate={onNavigate}
+            />
           ))
         : null}
     </div>

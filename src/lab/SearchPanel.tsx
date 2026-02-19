@@ -169,9 +169,9 @@ export function SearchPanel({ workspacePath, onFileSelect, onGoToLine }: SearchP
                 </CollapsibleTrigger>
                 <CollapsibleContent>
                   <div className="flex flex-col py-0.5 pl-4">
-                    {matches.map((match, i) => (
+                    {matches.map((match) => (
                       <MatchLine
-                        key={`${match.lineNumber}-${match.column}-${i}`}
+                        key={`${match.path}:${match.lineNumber}:${match.column}`}
                         match={match}
                         onClick={() => handleMatchClick(match)}
                       />

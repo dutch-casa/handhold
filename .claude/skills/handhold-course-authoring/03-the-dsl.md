@@ -48,6 +48,18 @@ Reveal a named visualization block on stage.
 - **In split mode**: Appends block alongside existing blocks. Deduplicates if already shown.
 - **In normal mode**: Replaces whatever is currently displayed.
 
+### show-group
+
+Reveal multiple blocks at once.
+
+```
+{{show-group: block-a,block-b fade 0.4s}}
+```
+
+- **targets**: Comma-separated block names (required).
+- **animation**: Optional, applied to all targets.
+- Use when the concept requires simultaneous context, not sequential buildup.
+
 ### hide
 
 Remove a named block from stage.
@@ -60,6 +72,16 @@ Remove a named block from stage.
 - **target**: Block name (required).
 - **animation**: Optional exit animation.
 - If the block isn't currently shown, silently does nothing.
+
+### hide-group
+
+Remove multiple blocks at once.
+
+```
+{{hide-group: block-a,block-b fade 0.3s}}
+```
+
+- **targets**: Comma-separated block names (required).
 
 ### clear
 
@@ -74,8 +96,20 @@ Remove all blocks and reset the entire scene. Hard scene break.
 
 - **transition**: `fade` (default), `slide`, or `instant`
 - **animation**: Optional duration and easing override.
-- Resets: slots, focus, flow, annotations, zoom. Increments epoch.
+- Resets: slots, focus, flow, annotations, zoom, pulse, trace. Increments epoch.
 - Use between conceptual sections, not within a section.
+
+### transform
+
+Morph one block into another with visual continuity.
+
+```
+{{transform: block-a->block-b fade 0.4s}}
+```
+
+- **from->to**: Source and destination block names, separated by `->`.
+- **animation**: Optional.
+- Use when two views are logically the same concept evolving (e.g., abstract diagram becoming concrete).
 
 ### split
 
@@ -107,6 +141,31 @@ Highlight a specific region within a block. Everything else dims.
 - **target**: A region name defined in the block's region footer.
 - **`none`**: Clears focus (everything returns to normal brightness).
 - Only one focus active at a time. New focus replaces previous.
+
+### pulse
+
+Briefly emphasize a region without changing focus state.
+
+```
+{{pulse: region-name}}
+```
+
+- **target**: Region name (required).
+- Visual flash/emphasis effect with a sound cue.
+- Does not alter the current focus. Use to call out a detail in passing.
+
+### trace
+
+Animate a path through edges or connections in a data structure or diagram.
+
+```
+{{trace: path-region}}
+{{trace: none}}
+```
+
+- **target**: Region name representing a path (edges between nodes).
+- **`none`**: Clears trace highlighting.
+- Use for: showing request flow through a system, algorithm traversal paths.
 
 ### annotate
 
@@ -200,6 +259,9 @@ Animation tokens trail the target in `show`, `hide`, and `clear` triggers. Order
 | `ease-in-out` | Gentle start and stop | Elements moving on screen |
 | `spring` | Physics-based with overshoot | Playful, snappy, data structures |
 | `linear` | Constant speed | Typewriter, mechanical processes |
+| `reveal` | Smooth cinematic reveal | First reveals, dramatic moments |
+| `emphasis` | Punchy overshoot | Drawing attention, key concepts |
+| `handoff` | Calm handoff between scenes | Scene transitions, topic changes |
 
 ### Defaults
 
@@ -512,13 +574,16 @@ Every trigger produces a new scene. The scene is an immutable snapshot of the vi
 
 ```
 Scene = {
-  slots:        [visible blocks]
-  focus:        "region" or "" (none)
-  flow:         "path" or "" (none)
-  annotations:  [{target, text}, ...]
-  zoom:         {scale, target}
-  epoch:        N (incremented on clear)
-  transition:   "fade" | "slide" | "instant"
+  slots:          [visible blocks]
+  focus:          "region" or "" (none)
+  flow:           "path" or "" (none)
+  pulse:          "region" or "" (none)
+  trace:          "path" or "" (none)
+  annotations:    [{target, text}, ...]
+  zoom:           {scale, target}
+  transformFrom:  [{from, to}, ...]
+  epoch:          N (incremented on clear)
+  transition:     "fade" | "slide" | "instant"
 }
 ```
 
@@ -527,13 +592,18 @@ Scene = {
 | Trigger | Effect |
 |---------|--------|
 | `show` | Add block to slots (split mode) or replace slots (normal mode) |
+| `show-group` | Add multiple blocks to slots at once |
 | `hide` | Remove block from slots |
+| `hide-group` | Remove multiple blocks from slots at once |
 | `clear` | Reset everything. Increment epoch. |
+| `transform` | Replace source block with target block, preserving visual continuity |
 | `split` | Enable additive mode for subsequent shows |
 | `unsplit` | Disable additive mode. Keep last block only. |
 | `focus` | Set focus field. `none` clears it. |
+| `pulse` | Set pulse field. Brief emphasis without changing focus. |
+| `trace` | Set trace field. Animate path through edges. `none` clears it. |
 | `annotate` | Add/replace annotation for target |
 | `zoom` | Set scale and target |
 | `flow` | Set flow path. `none` clears it. |
 
-**What `clear` resets:** Slots, focus, flow, annotations, zoom. It also increments epoch, signaling a hard visual boundary to the renderer.
+**What `clear` resets:** Slots, focus, flow, pulse, trace, annotations, zoom, transformFrom. It also increments epoch, signaling a hard visual boundary to the renderer.

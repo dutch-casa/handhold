@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
-import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-query";
 import { HotkeysProvider } from "@tanstack/react-hotkeys";
 import { invoke } from "@tauri-apps/api/core";
 import { Presentation } from "@/presentation/Presentation";
 import { parseLesson } from "@/parser/parse-lesson";
 import { initSettings } from "@/lab/settings-store";
 import { Browser } from "@/browser/Browser";
+import { watchDir, coursesDirPath, courseSync } from "@/browser/tauri";
 import { useRoute } from "@/browser/use-route";
 import {
   useCourse,
@@ -14,6 +15,8 @@ import {
   useCompleteStep,
   useSlidePosition,
   useSaveSlidePosition,
+  useSlideCompletions,
+  useSaveSlideCompletion,
   useLabData,
 } from "@/browser/use-courses";
 import { parseLab } from "@/lab/parse-lab";
@@ -30,8 +33,48 @@ const queryClient = new QueryClient({
   },
 });
 
+function useCoursesDirWatcher() {
+  const qc = useQueryClient();
+
+  useEffect(() => {
+    let disposed = false;
+    let cleanup: { dispose: () => void } | null = null;
+    let debounce: ReturnType<typeof setTimeout> | null = null;
+
+    const sync = async () => {
+      const result = await courseSync();
+      if (result.added > 0 || result.removed > 0) {
+        qc.invalidateQueries({ queryKey: ["courses"] });
+        qc.invalidateQueries({ queryKey: ["course-tags"] });
+      }
+    };
+
+    const start = async () => {
+      const dir = await coursesDirPath();
+      await sync();
+      cleanup = await watchDir(dir, () => {
+        if (debounce) clearTimeout(debounce);
+        debounce = setTimeout(() => { sync().catch(() => {}); }, 500);
+      });
+      if (disposed && cleanup) cleanup.dispose();
+    };
+
+    start().catch((err) => {
+      console.error("[courses-watcher] failed to start:", err);
+    });
+
+    return () => {
+      disposed = true;
+      if (debounce) clearTimeout(debounce);
+      cleanup?.dispose();
+    };
+  }, [qc]);
+}
+
 function AppContent() {
   const { route, navigate } = useRoute();
+
+  useCoursesDirWatcher();
 
   const { isLoading } = useQuery({
     queryKey: ["settings"],
@@ -91,8 +134,11 @@ function CourseShell({ courseId, onBack }: CourseShellProps) {
   const canNext = stepIndex < total - 1;
 
   function handleNext() {
-    completeStep.mutate({ courseId, stepIndex });
     if (canNext) setStepIndex((i) => i + 1);
+  }
+
+  function handleStepComplete() {
+    completeStep.mutate({ courseId, stepIndex });
   }
 
   return (
@@ -108,8 +154,16 @@ function CourseShell({ courseId, onBack }: CourseShellProps) {
         }}
         onBack={onBack}
       />
-      <div key={stepIndex} className="flex-1 min-h-0">
-        <StepView courseId={courseId} stepIndex={stepIndex} step={currentStep} onComplete={handleNext} audioBundlePath={course ? `${course.localPath}/audio` : undefined} />
+      <div key={currentStep.path} className="flex-1 min-h-0">
+        <StepView
+          courseId={courseId}
+          stepIndex={stepIndex}
+          step={currentStep}
+          onComplete={handleNext}
+          onLessonComplete={handleStepComplete}
+          audioBundlePath={course ? `${course.localPath}/audio` : undefined}
+          coursePath={course?.localPath}
+        />
       </div>
     </div>
   );
@@ -120,10 +174,12 @@ type StepViewProps = {
   readonly stepIndex: number;
   readonly step: ManifestStep;
   readonly onComplete: () => void;
+  readonly onLessonComplete: () => void;
   readonly audioBundlePath: string | undefined;
+  readonly coursePath: string | undefined;
 };
 
-function StepView({ courseId, stepIndex, step, onComplete, audioBundlePath }: StepViewProps) {
+function StepView({ courseId, stepIndex, step, onComplete, onLessonComplete, audioBundlePath, coursePath }: StepViewProps) {
   switch (step.kind) {
     case "lesson":
       return (
@@ -132,7 +188,9 @@ function StepView({ courseId, stepIndex, step, onComplete, audioBundlePath }: St
           stepIndex={stepIndex}
           stepPath={step.path}
           onComplete={onComplete}
+          onLessonComplete={onLessonComplete}
           audioBundlePath={audioBundlePath}
+          coursePath={coursePath}
         />
       );
     case "lab":
@@ -151,13 +209,49 @@ type LessonStepProps = {
   readonly stepIndex: number;
   readonly stepPath: string;
   readonly onComplete: () => void;
+  readonly onLessonComplete: () => void;
   readonly audioBundlePath: string | undefined;
+  readonly coursePath: string | undefined;
 };
 
-function LessonStep({ courseId, stepIndex, stepPath, onComplete, audioBundlePath }: LessonStepProps) {
+function LessonStep({ courseId, stepIndex, stepPath, onComplete, onLessonComplete, audioBundlePath, coursePath }: LessonStepProps) {
   const { data: content, isLoading: contentLoading } = useCourseStep(courseId, stepPath);
   const { data: savedPosition, isLoading: positionLoading } = useSlidePosition(courseId, stepIndex);
+  const { data: completedSlideIds, isLoading: completionsLoading } = useSlideCompletions(courseId, stepIndex);
   const savePosition = useSaveSlidePosition();
+  const saveSlideCompletion = useSaveSlideCompletion();
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!coursePath) return;
+    if (stepPath.length === 0) return;
+    const watchPath = `${coursePath.replace(/\/$/, "")}/${stepPath.replace(/^\//, "")}`;
+    let disposed = false;
+    let cleanup: { dispose: () => void } | null = null;
+    let debounce: ReturnType<typeof setTimeout> | null = null;
+    const queryKey = ["course-step", courseId, stepPath] as const;
+    const arm = async () => {
+      console.log("[watcher] arming →", watchPath);
+      cleanup = await watchDir(watchPath, () => {
+        if (debounce) clearTimeout(debounce);
+        debounce = setTimeout(() => {
+          console.log("[watcher] file changed, refetching", stepPath);
+          queryClient.invalidateQueries({ queryKey });
+          queryClient.refetchQueries({ queryKey });
+        }, 100);
+      });
+      console.log("[watcher] armed ✓", watchPath);
+      if (disposed && cleanup) cleanup.dispose();
+    };
+    arm().catch((err) => {
+      console.error("[watcher] failed to arm:", watchPath, err);
+    });
+    return () => {
+      disposed = true;
+      if (debounce) clearTimeout(debounce);
+      cleanup?.dispose();
+    };
+  }, [coursePath, courseId, stepPath, queryClient]);
 
   const lesson = useMemo(() => (content ? parseLesson(content) : null), [content]);
   useEffect(() => {
@@ -175,20 +269,42 @@ function LessonStep({ courseId, stepIndex, stepPath, onComplete, audioBundlePath
     console.warn("Lesson diagnostics:\n" + lines.join("\n"));
   }, [lesson]);
 
-  if (contentLoading || positionLoading || !lesson) return null;
+  const slideCount = lesson?.steps.length ?? 0;
+  const handleSlideChange = useCallback(
+    (slideIndex: number) => {
+      savePosition.mutate({
+        courseId,
+        stepIndex,
+        slideIndex,
+        slideCount,
+      });
+    },
+    [courseId, stepIndex, slideCount, savePosition],
+  );
+
+  const handleSlideComplete = useCallback(
+    (slideId: string) => {
+      saveSlideCompletion.mutate({ courseId, stepIndex, slideId });
+    },
+    [courseId, stepIndex, saveSlideCompletion],
+  );
+
+  const completedSet = useMemo(
+    () => new Set(completedSlideIds ?? []),
+    [completedSlideIds],
+  );
+
+  if (contentLoading || positionLoading || completionsLoading || !lesson) return null;
+
   return (
     <Presentation
       lesson={lesson}
       initialSlideIndex={savedPosition?.slideIndex}
-      onSlideChange={(slideIndex) =>
-        savePosition.mutate({
-          courseId,
-          stepIndex,
-          slideIndex,
-          slideCount: lesson.steps.length,
-        })
-      }
+      completedSlideIds={completedSet}
+      onSlideChange={handleSlideChange}
+      onSlideComplete={handleSlideComplete}
       onComplete={onComplete}
+      onLessonComplete={onLessonComplete}
       bundlePath={audioBundlePath}
     />
   );

@@ -155,10 +155,15 @@ pub fn run() {
             course::course_read_lab,
             course::slide_position_save,
             course::slide_position_load,
+            course::slide_complete,
+            course::slide_completions,
             // Workspace search
             search::search_workspace,
             // Preview compilation
             preview::compile_jsx,
+            // Course directory sync
+            course::courses_dir_path,
+            course::course_sync,
             // Lab provision tracking
             course::lab_is_provisioned,
             course::lab_mark_provisioned,

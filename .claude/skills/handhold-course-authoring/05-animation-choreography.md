@@ -297,8 +297,11 @@ Everything. After clear, the scene state is:
 - Slots: empty
 - Focus: none
 - Flow: none
+- Pulse: none
+- Trace: none
 - Annotations: gone
 - Zoom: 1x
+- TransformFrom: empty
 - Epoch: incremented
 
 This means you must `{{show: ...}}` something new after every clear. A clear followed by narration with no show means the audience hears narration while looking at nothing.

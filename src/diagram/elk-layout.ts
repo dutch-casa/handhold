@@ -53,16 +53,16 @@ export async function layoutDiagramWithElk(state: DiagramState): Promise<Diagram
   const nodeMap = new Map(state.nodes.map((n) => [n.id, n]));
   const nodes: PositionedDiagramNode[] = (result.children ?? []).map((child) => {
     const def = nodeMap.get(child.id);
-    return {
+    const base = {
       id: child.id,
       label: def?.label ?? child.id,
       nodeType: def?.nodeType ?? "service",
-      icon: def?.icon,
       x: child.x ?? 0,
       y: child.y ?? 0,
       width: child.width ?? NODE_W,
       height: child.height ?? NODE_H,
     };
+    return def?.icon !== undefined ? { ...base, icon: def.icon } : base;
   });
 
   const posMap = new Map(nodes.map((n) => [n.id, n]));

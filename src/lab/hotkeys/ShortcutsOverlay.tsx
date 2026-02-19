@@ -21,30 +21,44 @@ function KeyCombo({ binding }: { readonly binding: HotkeyBinding }) {
   if (binding.kind === "single") {
     return <Kbd text={formatKey(binding.keys)} />;
   }
+  const counts = new Map<string, number>();
+  let isFirst = true;
   return (
     <span className="flex items-center gap-1">
-      {binding.keys.map((key, i) => (
-        <span key={`${formatKey(key)}-${i}`} className="flex items-center gap-1">
-          {i > 0 ? <span className="text-muted-foreground/50">then</span> : null}
-          <Kbd text={formatKey(key)} />
-        </span>
-      ))}
+      {binding.keys.map((key) => {
+        const label = formatKey(key);
+        const next = (counts.get(label) ?? 0) + 1;
+        counts.set(label, next);
+        const showThen = !isFirst;
+        isFirst = false;
+        return (
+          <span key={`${label}-${next}`} className="flex items-center gap-1">
+            {showThen ? <span className="text-muted-foreground/50">then</span> : null}
+            <Kbd text={label} />
+          </span>
+        );
+      })}
     </span>
   );
 }
 
 function Kbd({ text }: { readonly text: string }) {
   const parts = text.split(" + ");
+  const counts = new Map<string, number>();
   return (
     <span className="flex items-center gap-0.5">
-      {parts.map((part, i) => (
+      {parts.map((part) => {
+        const next = (counts.get(part) ?? 0) + 1;
+        counts.set(part, next);
+        return (
         <kbd
-          key={`${part}-${i}`}
+          key={`${part}-${next}`}
           className="inline-flex min-w-[1.5em] items-center justify-center rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] font-medium text-muted-foreground"
         >
           {part}
         </kbd>
-      ))}
+        );
+      })}
     </span>
   );
 }

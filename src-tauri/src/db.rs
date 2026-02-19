@@ -83,6 +83,15 @@ fn migrate(conn: &Connection) -> Result<(), String> {
 
         INSERT OR IGNORE INTO app_route (id, kind) VALUES (1, 'browser');
 
+        CREATE TABLE IF NOT EXISTS slide_completion (
+            course_id  TEXT NOT NULL REFERENCES course(id) ON DELETE CASCADE,
+            step_index INTEGER NOT NULL,
+            slide_id   TEXT NOT NULL,
+            PRIMARY KEY (course_id, step_index, slide_id),
+            CHECK (step_index >= 0),
+            CHECK (length(slide_id) > 0)
+        ) STRICT, WITHOUT ROWID;
+
         CREATE TABLE IF NOT EXISTS lab_provision (
             workspace_path TEXT PRIMARY KEY,
             provisioned_at INTEGER NOT NULL

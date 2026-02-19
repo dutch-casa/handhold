@@ -38,7 +38,12 @@ pub async fn watch_dir(path: String, on_event: Channel<WatchEvent>) -> Result<u3
         return Err(format!("Path does not exist: {path}"));
     }
 
+    let watched = path.clone();
     let watcher = notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
+        match &res {
+            Ok(ev) => eprintln!("[watcher] {watched}: {ev:?}"),
+            Err(e) => eprintln!("[watcher] {watched}: error: {e}"),
+        }
         if res.is_ok() {
             let _ = on_event.send(WatchEvent::Changed);
         }
@@ -54,6 +59,7 @@ pub async fn watch_dir(path: String, on_event: Channel<WatchEvent>) -> Result<u3
     w.configure(Config::default())
         .map_err(|e| format!("Failed to configure watcher: {e}"))?;
 
+    eprintln!("[watcher] watching id={id}: {path}");
     Ok(id)
 }
 

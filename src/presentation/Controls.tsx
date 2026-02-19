@@ -1,4 +1,5 @@
 import { useCurrentStepNumber, useTotalSteps, usePresentationStore } from "./store";
+import { useTtsStatus, type TtsStatus } from "./use-tts-status";
 import { colors, fonts, fontSizes, spacing, radii } from "@/app/theme";
 
 // Play/pause, step navigation, speed, and step progress.
@@ -18,6 +19,7 @@ export function Controls({ onNext }: ControlsProps) {
   const setPlaybackRate = usePresentationStore((s) => s.setPlaybackRate);
   const current = useCurrentStepNumber();
   const total = useTotalSteps();
+  const ttsStatus = useTtsStatus();
 
   return (
     <div style={barStyle}>
@@ -37,7 +39,10 @@ export function Controls({ onNext }: ControlsProps) {
         {current} / {total}
       </span>
 
-      <SpeedSelector rate={playbackRate} onChange={setPlaybackRate} />
+      <div style={rightClusterStyle}>
+        <TtsIndicator status={ttsStatus} />
+        <SpeedSelector rate={playbackRate} onChange={setPlaybackRate} />
+      </div>
     </div>
   );
 }
@@ -105,6 +110,20 @@ function SpeedSelector({ rate, onChange }: { readonly rate: number; readonly onC
   );
 }
 
+function TtsIndicator({ status }: { readonly status: TtsStatus }) {
+  if (status === "idle" || status === "ready") return null;
+
+  const label = status === "error" ? "Audio failed" : "Generating audio...";
+  const color = status === "error" ? colors.error : colors.textMuted;
+
+  return (
+    <div style={{ ...ttsIndicatorStyle, color }}>
+      {status === "loading" ? <SpinnerIcon /> : <WarningIcon />}
+      <span>{label}</span>
+    </div>
+  );
+}
+
 // --- Static Styles ---
 
 const barStyle: React.CSSProperties = {
@@ -140,11 +159,29 @@ const speedContainerStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: spacing.xs,
-  marginLeft: "auto",
   padding: `${spacing.xs} ${spacing.sm}`,
   borderRadius: radii.md,
   border: `1px solid ${colors.border}`,
   background: colors.surface,
+};
+
+const rightClusterStyle: React.CSSProperties = {
+  marginLeft: "auto",
+  display: "flex",
+  alignItems: "center",
+  gap: spacing.md,
+};
+
+const ttsIndicatorStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: spacing.xs,
+  padding: `${spacing.xs} ${spacing.sm}`,
+  borderRadius: radii.md,
+  border: `1px solid ${colors.border}`,
+  background: colors.surface,
+  color: colors.textMuted,
+  fontSize: "12px",
 };
 
 const speedButtonBase: React.CSSProperties = {
@@ -189,6 +226,34 @@ function ArrowRightIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
       <path d="M6 3l5 5-5 5" />
+    </svg>
+  );
+}
+
+function SpinnerIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="12" cy="12" r="9" strokeOpacity="0.25" />
+      <path d="M21 12a9 9 0 0 0-9-9">
+        <animateTransform
+          attributeName="transform"
+          type="rotate"
+          from="0 12 12"
+          to="360 12 12"
+          dur="1s"
+          repeatCount="indefinite"
+        />
+      </path>
+    </svg>
+  );
+}
+
+function WarningIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M12 9v4" />
+      <path d="M12 17h.01" />
+      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
     </svg>
   );
 }
