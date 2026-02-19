@@ -330,29 +330,56 @@ Architecture-style node-and-edge diagrams.
 
 ````
 ```diagram:system
+client [client]
+gw [api-gateway]
 api [service]
 db [database]
 cache [cache]
+client --> gw
+gw --> api
 api --> db
 api --reads--> cache
-{Backend: api, db, cache}
+{Backend: gw, api, db, cache}
 ---
 storage: db
 fast-path: cache
+gateway: gw
 ```
 ````
 
+**Node IDs** can contain letters, digits, underscores, and hyphens (e.g., `my-api`, `cache_01`).
+
 **Node types:** `[service]` (default), `[database]`, `[client]`, `[user]`, `[server]`, `[cache]`, `[queue]`, `[message-queue]`, `[load-balancer]`, `[api-gateway]`
 
-**Optional icon override:** nodes render AWS icons for common infrastructure types.
-**Default policy:** use AWS icons for all diagram nodes unless explicitly told otherwise.
-Add `icon=aws:<key>` to force a specific AWS icon.
-
-Example:
+**Bracket syntax:** Space-separated tokens inside `[...]`. Bare word sets the type. Key-value pairs for explicit options:
 
 ```
-edge [api-gateway icon=aws:apigateway]
+api [service]                          — bare word sets type
+gw [api-gateway icon=aws:apigateway]   — type + icon override
+cdn [type=service icon=aws:cloudfront] — explicit type= prefix
 ```
+
+First bare word wins as type. If no bare word, defaults to `service`.
+
+**Rendering:** Nodes render as **icons with a label below** (not boxes with text). Every node gets an AWS icon by default based on its type. Lucide icons are the fallback.
+
+**Icon override:** Add `icon=aws:<key>` to force a specific AWS icon.
+
+Available AWS icon keys:
+
+| Key | Aliases | Maps to |
+|-----|---------|---------|
+| `apigateway` | `api-gateway` | Amazon API Gateway |
+| `elb` | `load-balancer` | Elastic Load Balancing |
+| `rds` | `database` | Amazon RDS |
+| `elasticache` | `cache` | Amazon ElastiCache |
+| `sqs` | `queue`, `message-queue` | Amazon SQS |
+| `s3` | `object-store` | S3 Standard |
+| `cloudfront` | `cdn` | Amazon CloudFront |
+| `cognito` | `auth` | Amazon Cognito |
+| `ec2` | `server`, `service`, `compute` | Amazon EC2 |
+| `client` | — | Resource Client |
+| `user` | `users` | Resource User |
 
 **Edges:** `a --> b` (directed), `a --label--> b` (labeled)
 

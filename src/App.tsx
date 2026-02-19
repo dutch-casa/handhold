@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { HotkeysProvider } from "@tanstack/react-hotkeys";
 import { invoke } from "@tauri-apps/api/core";
@@ -159,9 +159,23 @@ function LessonStep({ courseId, stepIndex, stepPath, onComplete, audioBundlePath
   const { data: savedPosition, isLoading: positionLoading } = useSlidePosition(courseId, stepIndex);
   const savePosition = useSaveSlidePosition();
 
-  if (contentLoading || positionLoading || !content) return null;
+  const lesson = useMemo(() => (content ? parseLesson(content) : null), [content]);
+  useEffect(() => {
+    if (!lesson || lesson.diagnostics.length === 0) return;
+    const lines = lesson.diagnostics.map((d) => {
+      const loc = d.location.kind === "lesson"
+        ? "lesson"
+        : d.location.kind === "step"
+          ? `${d.location.stepTitle}`
+          : d.location.kind === "paragraph"
+            ? `${d.location.stepTitle} p${d.location.paragraphIndex + 1}`
+            : `${d.location.stepTitle} p${d.location.paragraphIndex + 1} t${d.location.triggerIndex + 1}`;
+      return `[${d.severity}] ${loc}: ${d.message}`;
+    });
+    console.warn("Lesson diagnostics:\n" + lines.join("\n"));
+  }, [lesson]);
 
-  const lesson = parseLesson(content);
+  if (contentLoading || positionLoading || !lesson) return null;
   return (
     <Presentation
       lesson={lesson}

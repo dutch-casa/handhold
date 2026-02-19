@@ -5,6 +5,7 @@ import { colors, fonts, fontSizes, radii, spring, fade } from "@/app/theme";
 type DiagramEdgeProps = {
   readonly edge: PositionedDiagramEdge;
   readonly flowing?: boolean;
+  readonly tracing?: boolean;
 };
 
 const ARROW_SIZE = 8;
@@ -17,7 +18,13 @@ const FLOW_PATH_TRANSITION = {
   strokeWidth: fade,
 };
 
-export function DiagramEdge({ edge, flowing = false }: DiagramEdgeProps) {
+const TRACE_PATH_TRANSITION = {
+  strokeDashoffset: { repeat: Infinity, duration: 0.6, ease: "linear" as const },
+  stroke: fade,
+  strokeWidth: fade,
+};
+
+export function DiagramEdge({ edge, flowing = false, tracing = false }: DiagramEdgeProps) {
   const perpX = -edge.endDirY;
   const perpY = edge.endDirX;
   const hw = ARROW_SIZE / 2;
@@ -25,7 +32,19 @@ export function DiagramEdge({ edge, flowing = false }: DiagramEdgeProps) {
   const baseY = edge.endY - edge.endDirY * ARROW_SIZE;
   const arrowPts = `${edge.endX},${edge.endY} ${baseX + perpX * hw},${baseY + perpY * hw} ${baseX - perpX * hw},${baseY - perpY * hw}`;
 
-  const strokeColor = flowing ? colors.secondary : colors.textMuted;
+  const strokeColor = tracing
+    ? colors.accent
+    : flowing
+      ? colors.secondary
+      : colors.textMuted;
+  const strokeWidth = tracing ? 2.2 : flowing ? 2 : 1.5;
+  const dashArray = tracing ? "6 4" : flowing ? "8 4" : "none";
+  const dashOffset = tracing ? [0, -24] : flowing ? [0, -20] : 0;
+  const pathTransition = tracing
+    ? TRACE_PATH_TRANSITION
+    : flowing
+      ? FLOW_PATH_TRANSITION
+      : spring;
 
   return (
     <motion.g
@@ -38,12 +57,12 @@ export function DiagramEdge({ edge, flowing = false }: DiagramEdgeProps) {
         animate={{
           d: edge.pathData,
           stroke: strokeColor,
-          strokeWidth: flowing ? 2 : 1.5,
-          strokeDashoffset: flowing ? [0, -20] : 0,
+          strokeWidth,
+          strokeDashoffset: dashOffset,
         }}
-        transition={flowing ? FLOW_PATH_TRANSITION : spring}
+        transition={pathTransition}
         fill="none"
-        strokeDasharray={flowing ? "8 4" : "none"}
+        strokeDasharray={dashArray}
       />
       <motion.polygon
         initial={{ points: arrowPts }}
@@ -65,7 +84,7 @@ export function DiagramEdge({ edge, flowing = false }: DiagramEdgeProps) {
             y={edge.labelY}
             textAnchor="middle"
             dominantBaseline="central"
-            fill={flowing ? colors.secondary : colors.textMuted}
+            fill={strokeColor}
             fontFamily={fonts.ui}
             fontSize={fontSizes.codeSmall}
           >

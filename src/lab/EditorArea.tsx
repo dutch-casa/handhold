@@ -28,7 +28,7 @@ function EditorBreadcrumbs({ segments }: { readonly segments: readonly string[] 
       <Breadcrumb>
         <BreadcrumbList>
           {segments.map((segment, i) => (
-            <BreadcrumbItem key={i}>
+            <BreadcrumbItem key={`${segment}-${i}`}>
               {i > 0 ? <BreadcrumbSeparator /> : null}
               {i === segments.length - 1 ? (
                 <BreadcrumbPage className="text-xs">{segment}</BreadcrumbPage>

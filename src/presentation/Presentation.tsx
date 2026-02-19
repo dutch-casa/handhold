@@ -94,6 +94,8 @@ export function Presentation({ lesson, initialSlideIndex, onSlideChange, onCompl
   return (
     <div
       ref={containerRef}
+      role="application"
+      aria-label="Lesson presentation"
       tabIndex={-1}
       onKeyDown={handleKeyDown}
       style={{

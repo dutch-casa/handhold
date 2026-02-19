@@ -7,13 +7,22 @@ import { colors, fonts, fontSizes, spring, fade } from "@/app/theme";
 type DiagramNodeProps = {
   readonly node: PositionedDiagramNode;
   readonly dimmed?: boolean;
+  readonly pulsing?: boolean;
+  readonly initialX?: number;
+  readonly initialY?: number;
 };
 
 const defaultIconKey = defaultAwsIconKey;
 const LABEL_GAP = 10;
 const ICON_PADDING = 6;
 
-export function DiagramNode({ node, dimmed = false }: DiagramNodeProps) {
+export function DiagramNode({
+  node,
+  dimmed = false,
+  pulsing = false,
+  initialX,
+  initialY,
+}: DiagramNodeProps) {
   if (!Number.isFinite(node.width) || !Number.isFinite(node.height)) {
     return null;
   }
@@ -38,11 +47,28 @@ export function DiagramNode({ node, dimmed = false }: DiagramNodeProps) {
   const labelY =
     node.height + LABEL_GAP + Number.parseFloat(fontSizes.codeSmall) / 2;
 
+  const useInitial = Number.isFinite(initialX) && Number.isFinite(initialY);
+  const initialPos = {
+    x: useInitial ? (initialX as number) : node.x,
+    y: useInitial ? (initialY as number) : node.y,
+    opacity: useInitial ? nodeOpacity : 0,
+  };
+
   return (
     <motion.g
-      animate={{ x: node.x, y: node.y, opacity: nodeOpacity }}
-      initial={{ x: node.x, y: node.y, opacity: 0 }}
-      transition={{ x: spring, y: spring, opacity: fade }}
+      animate={{
+        x: node.x,
+        y: node.y,
+        opacity: nodeOpacity,
+        scale: pulsing ? [1, 1.08, 1] : 1,
+      }}
+      initial={initialPos}
+      transition={{
+        x: spring,
+        y: spring,
+        opacity: fade,
+        scale: pulsing ? { duration: 0.6, ease: "easeOut" } : fade,
+      }}
       {...(!dimmed ? { "data-focused": true } : {})}
     >
       {AwsIcon ? (

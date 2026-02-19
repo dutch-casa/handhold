@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -15,6 +15,7 @@ type GoToLineDialogProps = {
 
 export function GoToLineDialog({ open, onClose, onGoToLine }: GoToLineDialogProps) {
   const [value, setValue] = useState("");
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   const handleSubmit = useCallback(() => {
     const line = parseInt(value, 10);
@@ -34,28 +35,33 @@ export function GoToLineDialog({ open, onClose, onGoToLine }: GoToLineDialogProp
     [onClose],
   );
 
+  useEffect(() => {
+    if (open) {
+      inputRef.current?.focus();
+    }
+  }, [open]);
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-xs gap-3">
         <DialogHeader>
           <DialogTitle>Go to Line</DialogTitle>
         </DialogHeader>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleSubmit();
+        <Input
+          ref={inputRef}
+          type="number"
+          min={1}
+          placeholder="Line number"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              handleSubmit();
+            }
           }}
-        >
-          <Input
-            type="number"
-            min={1}
-            placeholder="Line number"
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            className="tabular-nums"
-            autoFocus
-          />
-        </form>
+          className="tabular-nums"
+        />
       </DialogContent>
     </Dialog>
   );

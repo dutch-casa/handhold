@@ -14,22 +14,42 @@ type DiagramProps = {
   readonly prevState: DiagramState | undefined;
   readonly focus: string;
   readonly flow: string;
+  readonly pulse: string;
+  readonly trace: string;
   readonly annotations: readonly SceneAnnotation[];
 };
 
-export function Diagram({ state, focus, flow, annotations }: DiagramProps) {
+export function Diagram({ state, focus, flow, pulse, trace, annotations }: DiagramProps) {
   const { data: layout } = useQuery<DiagramLayout>({
     queryKey: ["elk-layout", state],
     queryFn: () => layoutDiagramWithElk(state),
     staleTime: Infinity,
     enabled: state.nodes.length > 0,
   });
+  const { data: prevLayout } = useQuery<DiagramLayout>({
+    queryKey: ["elk-layout", "prev", prevState],
+    queryFn: () => {
+      if (!prevState) {
+        throw new Error("prevState missing for diagram layout");
+      }
+      return layoutDiagramWithElk(prevState);
+    },
+    staleTime: Infinity,
+    enabled: !!prevState && prevState.nodes.length > 0,
+  });
 
   const focusedIds = resolveDiagramRegion(focus, state);
+  const pulsedIds = resolveDiagramRegion(pulse, state);
+  const tracedIds = resolveDiagramRegion(trace, state);
 
   const flowingEdgeIds = useMemo(
     () => resolveFlowEdges(flow, state),
     [flow, state],
+  );
+
+  const tracedEdgeIds = useMemo(
+    () => resolveFlowEdges(trace, state),
+    [trace, state],
   );
 
   const dedupedAnnotations = useMemo(() => {
@@ -41,6 +61,10 @@ export function Diagram({ state, focus, flow, annotations }: DiagramProps) {
   }, [annotations]);
 
   if (!layout || layout.width === 0) return null;
+
+  const prevNodeMap = new Map(
+    (prevLayout?.nodes ?? []).map((n) => [n.id, n]),
+  );
 
   return (
     <svg
@@ -57,6 +81,7 @@ export function Diagram({ state, focus, flow, annotations }: DiagramProps) {
           key={edge.id}
           edge={edge}
           flowing={flowingEdgeIds.has(`${edge.fromId}->${edge.toId}`) || flowingEdgeIds.has(`${edge.toId}->${edge.fromId}`)}
+          tracing={tracedEdgeIds.has(`${edge.fromId}->${edge.toId}`) || tracedEdgeIds.has(`${edge.toId}->${edge.fromId}`)}
         />
       ))}
       {layout.nodes.map((node) => (
@@ -64,6 +89,9 @@ export function Diagram({ state, focus, flow, annotations }: DiagramProps) {
           key={node.id}
           node={node}
           dimmed={focusedIds.length > 0 && !focusedIds.includes(node.id)}
+          pulsing={pulsedIds.includes(node.id)}
+          initialX={prevNodeMap.get(node.id)?.x}
+          initialY={prevNodeMap.get(node.id)?.y}
         />
       ))}
       {layout.groups.map((group) => (

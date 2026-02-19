@@ -155,15 +155,34 @@ Preview code runs in an iframe with no build tools. For React previews:
 
 ### Node type semantics
 
+Diagram nodes render as **icons with a label below** (not boxes with text inside). By default every node gets an AWS icon matching its type. Lucide icons are the fallback when no AWS icon maps.
+
 Choose node types that communicate the component's role:
 
-| Type | Visual | Represents |
-|------|--------|------------|
-| `[service]` | Box | Application components, microservices, API endpoints |
-| `[database]` | Cylinder | Databases, persistent storage |
-| `[client]` | User icon | End users, browsers, mobile clients |
-| `[cache]` | Cache icon | Caches, CDNs, in-memory stores |
-| `[queue]` | Queue icon | Message queues, job queues, event streams |
+| Type | Default icon | Represents |
+|------|-------------|------------|
+| `[service]` | AWS EC2 | Application components, microservices, API endpoints |
+| `[database]` | AWS RDS | Databases, persistent storage |
+| `[client]` | AWS Client | End users, browsers, mobile clients |
+| `[user]` | AWS User | User silhouette, actors in a system |
+| `[server]` | AWS EC2 | Server instances, compute nodes |
+| `[cache]` | AWS ElastiCache | Caches, CDNs, in-memory stores |
+| `[queue]` | AWS SQS | Message queues, job queues |
+| `[message-queue]` | AWS SQS | Messaging-specific queues, event streams |
+| `[load-balancer]` | AWS ELB | Load balancers, traffic distribution |
+| `[api-gateway]` | AWS API Gateway | API gateways, edge routers |
+
+### Icon overrides
+
+Override the default AWS icon with `icon=aws:<key>` inside the bracket:
+
+```
+cdn [service icon=aws:cloudfront]
+auth [service icon=aws:cognito]
+storage [database icon=aws:s3]
+```
+
+Available AWS icon keys: `apigateway`, `elb`, `rds`, `elasticache`, `sqs`, `s3`, `cloudfront`, `cognito`, `ec2`, `client`, `user`, `users`, plus aliases (`api-gateway`, `load-balancer`, `database`, `cache`, `queue`, `message-queue`, `object-store`, `cdn`, `auth`, `server`, `service`, `compute`).
 
 ### Edge labels
 

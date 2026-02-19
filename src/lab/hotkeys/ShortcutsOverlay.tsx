@@ -24,7 +24,7 @@ function KeyCombo({ binding }: { readonly binding: HotkeyBinding }) {
   return (
     <span className="flex items-center gap-1">
       {binding.keys.map((key, i) => (
-        <span key={i} className="flex items-center gap-1">
+        <span key={`${formatKey(key)}-${i}`} className="flex items-center gap-1">
           {i > 0 ? <span className="text-muted-foreground/50">then</span> : null}
           <Kbd text={formatKey(key)} />
         </span>
@@ -39,7 +39,7 @@ function Kbd({ text }: { readonly text: string }) {
     <span className="flex items-center gap-0.5">
       {parts.map((part, i) => (
         <kbd
-          key={i}
+          key={`${part}-${i}`}
           className="inline-flex min-w-[1.5em] items-center justify-center rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] font-medium text-muted-foreground"
         >
           {part}

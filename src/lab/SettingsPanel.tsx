@@ -39,27 +39,30 @@ export function SettingsPanel() {
 
         <CollapsibleContent className="px-3 py-2">
           <div className="flex flex-col gap-3">
-            <label className="flex cursor-pointer items-center justify-between">
+            <label htmlFor="setting-vim-mode" className="flex cursor-pointer items-center justify-between">
               <span className="text-xs text-muted-foreground">Vim mode</span>
               <Switch
+                id="setting-vim-mode"
                 size="sm"
                 checked={editor.vimMode}
                 onCheckedChange={(checked) => update({ vimMode: checked })}
               />
             </label>
 
-            <label className="flex cursor-pointer items-center justify-between">
+            <label htmlFor="setting-ligatures" className="flex cursor-pointer items-center justify-between">
               <span className="text-xs text-muted-foreground">Ligatures</span>
               <Switch
+                id="setting-ligatures"
                 size="sm"
                 checked={editor.ligatures}
                 onCheckedChange={(checked) => update({ ligatures: checked })}
               />
             </label>
 
-            <label className="flex items-center justify-between">
+            <label htmlFor="setting-font-size" className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground">Font size</span>
               <Input
+                id="setting-font-size"
                 type="number"
                 min={8}
                 max={32}
@@ -71,9 +74,10 @@ export function SettingsPanel() {
               />
             </label>
 
-            <label className="flex items-center justify-between">
+            <label htmlFor="setting-tab-size" className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground">Tab size</span>
               <Input
+                id="setting-tab-size"
                 type="number"
                 min={1}
                 max={8}
@@ -85,9 +89,10 @@ export function SettingsPanel() {
               />
             </label>
 
-            <label className="flex cursor-pointer items-center justify-between">
+            <label htmlFor="setting-word-wrap" className="flex cursor-pointer items-center justify-between">
               <span className="text-xs text-muted-foreground">Word wrap</span>
               <Switch
+                id="setting-word-wrap"
                 size="sm"
                 checked={editor.wordWrap}
                 onCheckedChange={(checked) => update({ wordWrap: checked })}
@@ -95,12 +100,12 @@ export function SettingsPanel() {
             </label>
 
             <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Line numbers</span>
+              <label htmlFor="setting-line-numbers" className="text-xs text-muted-foreground">Line numbers</label>
               <Select
                 value={editor.lineNumbers}
                 onValueChange={(v) => update({ lineNumbers: v as LineNumbers })}
               >
-                <SelectTrigger className="h-6 w-24 text-xs">
+                <SelectTrigger id="setting-line-numbers" className="h-6 w-24 text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -111,18 +116,20 @@ export function SettingsPanel() {
               </Select>
             </div>
 
-            <label className="flex cursor-pointer items-center justify-between">
+            <label htmlFor="setting-bracket-matching" className="flex cursor-pointer items-center justify-between">
               <span className="text-xs text-muted-foreground">Bracket matching</span>
               <Switch
+                id="setting-bracket-matching"
                 size="sm"
                 checked={editor.bracketColors}
                 onCheckedChange={(checked) => update({ bracketColors: checked })}
               />
             </label>
 
-            <label className="flex cursor-pointer items-center justify-between">
+            <label htmlFor="setting-auto-save" className="flex cursor-pointer items-center justify-between">
               <span className="text-xs text-muted-foreground">Auto save</span>
               <Switch
+                id="setting-auto-save"
                 size="sm"
                 checked={editor.autoSave}
                 onCheckedChange={(checked) => update({ autoSave: checked })}
@@ -130,9 +137,10 @@ export function SettingsPanel() {
             </label>
 
             {editor.autoSave ? (
-              <label className="flex items-center justify-between">
+              <label htmlFor="setting-auto-save-delay" className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">Save delay (ms)</span>
                 <Input
+                  id="setting-auto-save-delay"
                   type="number"
                   min={500}
                   max={5000}

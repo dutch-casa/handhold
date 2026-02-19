@@ -110,11 +110,11 @@ function ServiceRow({
       ) : null}
 
       {/* Action buttons — 44px tap target each */}
-      <span className="flex shrink-0 items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+      <span className="flex shrink-0 items-center gap-0.5">
         {isRunning ? (
           <button
             type="button"
-            onClick={() => onAction("stop")}
+            onClick={(e) => { e.stopPropagation(); onAction("stop"); }}
             className="focus-ring press flex size-7 items-center justify-center rounded hover:bg-muted"
             aria-label={`Stop ${container.name}`}
           >
@@ -123,7 +123,7 @@ function ServiceRow({
         ) : (
           <button
             type="button"
-            onClick={() => onAction("start")}
+            onClick={(e) => { e.stopPropagation(); onAction("start"); }}
             className="focus-ring press flex size-7 items-center justify-center rounded hover:bg-muted"
             aria-label={`Start ${container.name}`}
           >
@@ -132,7 +132,7 @@ function ServiceRow({
         )}
         <button
           type="button"
-          onClick={() => onAction("restart")}
+          onClick={(e) => { e.stopPropagation(); onAction("restart"); }}
           className="focus-ring press flex size-7 items-center justify-center rounded hover:bg-muted"
           aria-label={`Restart ${container.name}`}
         >

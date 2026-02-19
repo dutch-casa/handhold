@@ -59,8 +59,9 @@ export function SaveConfirmDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
 
-        <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+        <label htmlFor="suppress-close-confirm" className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
           <Checkbox
+            id="suppress-close-confirm"
             checked={suppress}
             onCheckedChange={handleSuppress}
           />

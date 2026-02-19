@@ -1,7 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import type { MathState } from "@/types/lesson";
-import { useKatex } from "./use-katex";
+import katex from "katex";
 // layout-math available for future SVG-based rendering
 import { colors, spring, fade } from "@/app/theme";
 import "katex/dist/katex.min.css";
@@ -40,13 +40,18 @@ function MathExpression({
   readonly regions: MathState["regions"];
   readonly focus: string;
 }) {
-  const { data } = useKatex(latex);
-
   const focusedIds = useMemo(() => resolveRegion(focus, regions), [focus, regions]);
 
   const dimmed = focusedIds.length > 0 && !focusedIds.includes(id);
 
-  if (!data) return null;
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    el.innerHTML = "";
+    katex.render(latex, el, { displayMode: true, throwOnError: false, output: "html" });
+  }, [latex]);
 
   return (
     <motion.div
@@ -59,7 +64,7 @@ function MathExpression({
         padding: "8px 12px",
         color: colors.text,
       }}
-      dangerouslySetInnerHTML={{ __html: data.html }}
+      ref={containerRef}
     />
   );
 }

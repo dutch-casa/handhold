@@ -1,3 +1,4 @@
+/* eslint-disable jsx-a11y/label-has-associated-control -- association enforced at call sites */
 "use client"
 
 import * as React from "react"

@@ -172,7 +172,7 @@ export function CommandPalette({
   return (
     <CommandDialog open={open} onOpenChange={handleOpenChange}>
       <Command shouldFilter={false}>
-        <div onKeyDown={handleFileKeyDown}>
+        <div role="presentation" onKeyDown={handleFileKeyDown}>
           <CommandInput
             placeholder={
               isCommandMode
@@ -233,6 +233,14 @@ export function CommandPalette({
                       data-selected={
                         vi.index === selectedIndex ? "" : undefined
                       }
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          selectFile(file.path);
+                        }
+                      }}
                       className="data-selected:bg-muted data-selected:text-foreground absolute left-0 top-0 flex w-full cursor-default items-center gap-2 rounded-lg px-3 text-sm select-none"
                       style={{
                         height: vi.size,

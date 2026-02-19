@@ -9,7 +9,7 @@ import { parseChart } from "./parse-chart";
 import { parsePreview } from "./parse-preview";
 import { splitContentAndRegions } from "./parse-regions";
 import { buildSceneSequence } from "./build-scenes";
-import { parseAnimationTokens } from "./parse-animation";
+import { parseAnimationTokens, isAnimationToken } from "./parse-animation";
 import type {
   ParsedLesson,
   LessonStep,
@@ -22,6 +22,8 @@ import type {
   TriggerVerb,
   GraphLayoutKind,
   PreviewTemplate,
+  LessonDiagnostic,
+  DiagnosticLocation,
 } from "@/types/lesson";
 import { DEFAULT_ANIMATION } from "@/types/lesson";
 
@@ -53,9 +55,9 @@ export function parseLesson(markdown: string): ParsedLesson {
     .parse(markdown) as MdastNode;
 
   const title = extractTitle(tree);
-  const steps = extractSteps(tree);
+  const { steps, diagnostics } = extractSteps(tree);
 
-  return { title, steps };
+  return { title, steps, diagnostics };
 }
 
 // --- Frontmatter ---
@@ -69,17 +71,26 @@ function extractTitle(tree: MdastNode): string {
 
 // --- Step extraction ---
 
-function extractSteps(tree: MdastNode): LessonStep[] {
+function extractSteps(tree: MdastNode): {
+  readonly steps: LessonStep[];
+  readonly diagnostics: readonly LessonDiagnostic[];
+} {
   const children = tree.children ?? [];
   const steps: LessonStep[] = [];
+  const diagnostics: LessonDiagnostic[] = [];
 
   let currentTitle = "";
   let currentNodes: MdastNode[] = [];
 
   function flushStep() {
     if (currentNodes.length === 0) return;
-    const step = buildStep(currentTitle, currentNodes, steps.length);
+    const { step, diagnostics: stepDiagnostics } = buildStep(
+      currentTitle,
+      currentNodes,
+      steps.length,
+    );
     steps.push(step);
+    diagnostics.push(...stepDiagnostics);
     currentNodes = [];
   }
 
@@ -96,14 +107,14 @@ function extractSteps(tree: MdastNode): LessonStep[] {
   }
 
   flushStep();
-  return steps;
+  return { steps, diagnostics };
 }
 
 function buildStep(
   title: string,
   nodes: MdastNode[],
   index: number,
-): LessonStep {
+): { readonly step: LessonStep; readonly diagnostics: readonly LessonDiagnostic[] } {
   const narration: NarrationBlock[] = [];
   const blocks = new Map<string, VisualizationState>();
   const kindCounters = new Map<string, number>();
@@ -124,13 +135,17 @@ function buildStep(
 
   const scenes = buildSceneSequence(blocks, narration);
 
-  return {
+  const step: LessonStep = {
     id: `step-${index}`,
     title,
     narration,
     blocks,
     scenes,
   };
+
+  const diagnostics = validateStep(step, narration, blocks);
+
+  return { step, diagnostics };
 }
 
 // --- Block metadata extraction ---
@@ -178,11 +193,16 @@ function autoName(
 
 const VERB_KEYWORDS = new Set([
   "show",
+  "show-group",
   "hide",
+  "hide-group",
+  "transform",
   "clear",
   "split",
   "unsplit",
   "focus",
+  "pulse",
+  "trace",
   "annotate",
   "zoom",
   "flow",
@@ -204,10 +224,32 @@ export function parseTriggerAction(text: string): TriggerVerb {
         const animation = parseAnimationTokens(tokens.slice(1));
         return { verb: "show", target, animation };
       }
+      case "show-group": {
+        const { headTokens, animTokens } = splitAnimationTokens(tokens);
+        const targets = parseTargetList(headTokens);
+        const animation = parseAnimationTokens(animTokens);
+        return { verb: "show-group", targets, animation };
+      }
       case "hide": {
         const target = tokens[0] ?? "";
         const animation = parseAnimationTokens(tokens.slice(1));
         return { verb: "hide", target, animation };
+      }
+      case "hide-group": {
+        const { headTokens, animTokens } = splitAnimationTokens(tokens);
+        const targets = parseTargetList(headTokens);
+        const animation = parseAnimationTokens(animTokens);
+        return { verb: "hide-group", targets, animation };
+      }
+      case "transform": {
+        const { headTokens, animTokens } = splitAnimationTokens(tokens);
+        const pair = headTokens.join(" ").trim();
+        const [from, to] = pair
+          .split(/\s*->\s*/)
+          .map((t) => t.trim())
+          .filter(Boolean);
+        const animation = parseAnimationTokens(animTokens);
+        return { verb: "transform", from: from ?? "", to: to ?? "", animation };
       }
       case "clear": {
         const first = tokens[0] ?? "";
@@ -220,6 +262,10 @@ export function parseTriggerAction(text: string): TriggerVerb {
       }
       case "focus":
         return { verb: "focus", target: args };
+      case "pulse":
+        return { verb: "pulse", target: args };
+      case "trace":
+        return { verb: "trace", target: args };
       case "annotate": {
         const annoMatch = args.match(/^(\S+)\s+"(.+)"$/);
         if (annoMatch) {
@@ -293,6 +339,182 @@ function parseNarrationFromText(rawText: string): NarrationBlock {
   }
 
   return { text: cleanText.replace(/\s+/g, " ").trim(), triggers };
+}
+
+function splitAnimationTokens(tokens: readonly string[]): {
+  readonly headTokens: readonly string[];
+  readonly animTokens: readonly string[];
+} {
+  let splitIdx = tokens.length;
+  for (let i = tokens.length - 1; i >= 0; i--) {
+    if (isAnimationToken(tokens[i] ?? "")) {
+      splitIdx = i;
+      continue;
+    }
+    break;
+  }
+  return {
+    headTokens: tokens.slice(0, splitIdx),
+    animTokens: tokens.slice(splitIdx),
+  };
+}
+
+function parseTargetList(tokens: readonly string[]): readonly string[] {
+  const joined = tokens.join(" ");
+  return joined
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+}
+
+// --- Diagnostics ---
+
+function validateStep(
+  step: LessonStep,
+  narration: readonly NarrationBlock[],
+  blocks: ReadonlyMap<string, VisualizationState>,
+): readonly LessonDiagnostic[] {
+  const diagnostics: LessonDiagnostic[] = [];
+  const blockNames = new Set(blocks.keys());
+  const regionNames = new Set(
+    [...blocks.values()].flatMap((b) => b.regions.map((r) => r.name)),
+  );
+
+  const stepLocation: DiagnosticLocation = {
+    kind: "step",
+    stepId: step.id,
+    stepTitle: step.title,
+  };
+
+  narration.forEach((block, paragraphIndex) => {
+    const hasVerb = block.triggers.some((t) => t.action.verb !== "advance");
+    if (!hasVerb) {
+      diagnostics.push({
+        severity: "warning",
+        message: "Narration paragraph has no visual triggers.",
+        location: {
+          kind: "paragraph",
+          stepId: step.id,
+          stepTitle: step.title,
+          paragraphIndex,
+        },
+      });
+    }
+
+    block.triggers.forEach((trigger, triggerIndex) => {
+      const location: DiagnosticLocation = {
+        kind: "trigger",
+        stepId: step.id,
+        stepTitle: step.title,
+        paragraphIndex,
+        triggerIndex,
+      };
+
+      switch (trigger.action.verb) {
+        case "show":
+        case "hide": {
+          if (!blockNames.has(trigger.action.target)) {
+            diagnostics.push({
+              severity: "warning",
+              message: `Unknown block target: "${trigger.action.target}".`,
+              location,
+            });
+          }
+          return;
+        }
+        case "show-group":
+        case "hide-group": {
+          if (trigger.action.targets.length === 0) {
+            diagnostics.push({
+              severity: "warning",
+              message: "Group trigger has no targets.",
+              location,
+            });
+            return;
+          }
+          for (const target of trigger.action.targets) {
+            if (!blockNames.has(target)) {
+              diagnostics.push({
+                severity: "warning",
+                message: `Unknown block target: "${target}".`,
+                location,
+              });
+            }
+          }
+          return;
+        }
+        case "transform": {
+          if (!blockNames.has(trigger.action.from)) {
+            diagnostics.push({
+              severity: "warning",
+              message: `Unknown transform source: "${trigger.action.from}".`,
+              location,
+            });
+          }
+          if (!blockNames.has(trigger.action.to)) {
+            diagnostics.push({
+              severity: "warning",
+              message: `Unknown transform target: "${trigger.action.to}".`,
+              location,
+            });
+          }
+          if (blockNames.has(trigger.action.from) && blockNames.has(trigger.action.to)) {
+            const from = blocks.get(trigger.action.from);
+            const to = blocks.get(trigger.action.to);
+            if (from && to && from.kind !== to.kind) {
+              diagnostics.push({
+                severity: "warning",
+                message: `Transform crosses block kinds (${from.kind} -> ${to.kind}).`,
+                location,
+              });
+            }
+          }
+          return;
+        }
+        case "zoom": {
+          const target = trigger.action.target;
+          if (target.length > 0 && !blockNames.has(target)) {
+            diagnostics.push({
+              severity: "warning",
+              message: `Unknown zoom target: "${target}".`,
+              location,
+            });
+          }
+          return;
+        }
+        case "focus":
+        case "annotate":
+        case "flow":
+        case "pulse":
+        case "trace": {
+          const target = trigger.action.target;
+          if (target.length > 0 && target !== "none" && !regionNames.has(target)) {
+            diagnostics.push({
+              severity: "warning",
+              message: `Unknown region: "${target}".`,
+              location,
+            });
+          }
+          return;
+        }
+        case "clear":
+        case "split":
+        case "unsplit":
+        case "advance":
+          return;
+      }
+    });
+  });
+
+  if (narration.length === 0 && blocks.size > 0) {
+    diagnostics.push({
+      severity: "warning",
+      message: "Step has visuals but no narration.",
+      location: stepLocation,
+    });
+  }
+
+  return diagnostics;
 }
 
 // --- Code fence parsing ---

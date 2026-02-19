@@ -1,4 +1,4 @@
-import { useRef, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
@@ -18,6 +18,12 @@ export function TerminalTab({ handle, visible }: TerminalTabProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
+  const setContainerRef = useCallback((node: HTMLDivElement | null) => {
+    containerRef.current = node;
+    if (!node || !visible) return;
+    fitRef.current?.fit();
+    termRef.current?.focus();
+  }, [visible]);
 
   // Create terminal once, wire to PTY handle
   useEffect(() => {
@@ -27,7 +33,8 @@ export function TerminalTab({ handle, visible }: TerminalTabProps) {
     const term = new Terminal({
       cursorBlink: true,
       fontSize: 14,
-      fontFamily: "'JetBrainsMono Nerd Font Mono', 'JetBrainsMono Nerd Font', 'JetBrains Mono', 'Fira Code', monospace",
+      fontFamily: "'JetBrainsMonoNL NF', 'JetBrainsMonoNL Nerd Font Mono', 'JetBrainsMonoNL Nerd Font', 'JetBrainsMono Nerd Font Mono', 'JetBrainsMono Nerd Font', 'Symbols Nerd Font Mono', 'JetBrains Mono', 'Fira Code', monospace",
+      fontLigatures: true,
       theme: {
         background: "#0a0a0a",
         foreground: "#f1efe8",
@@ -94,17 +101,9 @@ export function TerminalTab({ handle, visible }: TerminalTabProps) {
     };
   }, [handle]);
 
-  // Re-fit when visibility changes (tab switch)
-  useEffect(() => {
-    if (visible) {
-      fitRef.current?.fit();
-      termRef.current?.focus();
-    }
-  }, [visible]);
-
   return (
     <div
-      ref={containerRef}
+      ref={setContainerRef}
       style={{
         width: "100%",
         height: "100%",

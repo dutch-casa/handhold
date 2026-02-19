@@ -18,7 +18,14 @@ export type AnimationEffect =
   | "typewriter"
   | "none";
 
-export type EasingKind = "ease-out" | "ease-in-out" | "spring" | "linear";
+export type EasingKind =
+  | "ease-out"
+  | "ease-in-out"
+  | "spring"
+  | "linear"
+  | "reveal"
+  | "emphasis"
+  | "handoff";
 
 // Tagged union — absence of custom animation is an explicit variant, not a missing field.
 export type AnimationOverride =
@@ -53,8 +60,24 @@ export type TriggerVerb =
       readonly animation: AnimationOverride;
     }
   | {
+      readonly verb: "show-group";
+      readonly targets: readonly string[];
+      readonly animation: AnimationOverride;
+    }
+  | {
       readonly verb: "hide";
       readonly target: string;
+      readonly animation: AnimationOverride;
+    }
+  | {
+      readonly verb: "hide-group";
+      readonly targets: readonly string[];
+      readonly animation: AnimationOverride;
+    }
+  | {
+      readonly verb: "transform";
+      readonly from: string;
+      readonly to: string;
       readonly animation: AnimationOverride;
     }
   | {
@@ -65,6 +88,8 @@ export type TriggerVerb =
   | { readonly verb: "split" }
   | { readonly verb: "unsplit" }
   | { readonly verb: "focus"; readonly target: string }
+  | { readonly verb: "pulse"; readonly target: string }
+  | { readonly verb: "trace"; readonly target: string }
   | {
       readonly verb: "annotate";
       readonly target: string;
@@ -325,6 +350,9 @@ export type SceneState = {
   readonly epoch: number;
   readonly focus: string;
   readonly flow: string;
+  readonly pulse: string;
+  readonly trace: string;
+  readonly transformFrom: readonly { readonly to: string; readonly from: string }[];
   readonly annotations: readonly SceneAnnotation[];
   readonly zoom: { readonly scale: number; readonly target: string };
 };
@@ -339,9 +367,33 @@ export type LessonStep = {
   readonly scenes: readonly SceneState[];
 };
 
+export type DiagnosticLocation =
+  | { readonly kind: "lesson" }
+  | { readonly kind: "step"; readonly stepId: string; readonly stepTitle: string }
+  | {
+      readonly kind: "paragraph";
+      readonly stepId: string;
+      readonly stepTitle: string;
+      readonly paragraphIndex: number;
+    }
+  | {
+      readonly kind: "trigger";
+      readonly stepId: string;
+      readonly stepTitle: string;
+      readonly paragraphIndex: number;
+      readonly triggerIndex: number;
+    };
+
+export type LessonDiagnostic = {
+  readonly severity: "warning" | "error";
+  readonly message: string;
+  readonly location: DiagnosticLocation;
+};
+
 // --- Lesson: the top-level parsed result ---
 
 export type ParsedLesson = {
   readonly title: string;
   readonly steps: readonly LessonStep[];
+  readonly diagnostics: readonly LessonDiagnostic[];
 };

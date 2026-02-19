@@ -48,19 +48,31 @@ export function Chart({ state, focus }: ChartProps) {
   return (
     <div style={{ width: "100%", height: CHART_HEIGHT, padding: "8px 0" }}>
       <ResponsiveContainer width="100%" height="100%">
-        {renderChart(state.chartKind, data, seriesNames, focusedLabels, state)}
+        <ChartBody
+          kind={state.chartKind}
+          data={data}
+          seriesNames={seriesNames}
+          focusedLabels={focusedLabels}
+          state={state}
+        />
       </ResponsiveContainer>
     </div>
   );
 }
 
-function renderChart(
-  kind: ChartState["chartKind"],
-  data: ReturnType<typeof toRechartsData>,
-  seriesNames: string[],
-  _focusedLabels: string[],
-  state: ChartState,
-) {
+function ChartBody({
+  kind,
+  data,
+  seriesNames,
+  focusedLabels: _focusedLabels,
+  state,
+}: {
+  readonly kind: ChartState["chartKind"];
+  readonly data: ReturnType<typeof toRechartsData>;
+  readonly seriesNames: readonly string[];
+  readonly focusedLabels: readonly string[];
+  readonly state: ChartState;
+}) {
   const annotations = state.annotations.map((a) => (
     <ReferenceLine
       key={`anno-${a.label}`}

@@ -16,6 +16,9 @@ const EASINGS: ReadonlySet<string> = new Set<EasingKind>([
   "ease-in-out",
   "spring",
   "linear",
+  "reveal",
+  "emphasis",
+  "handoff",
 ]);
 
 const DURATION_RE = /^(\d+(?:\.\d+)?)(s|ms)$/;
@@ -54,4 +57,10 @@ export function parseAnimationTokens(
 
   if (!hasAny) return DEFAULT_ANIMATION;
   return { kind: "custom", effect, durationS, easing };
+}
+
+export function isAnimationToken(token: string): boolean {
+  if (EFFECTS.has(token as AnimationEffect)) return true;
+  if (EASINGS.has(token as EasingKind)) return true;
+  return DURATION_RE.test(token);
 }

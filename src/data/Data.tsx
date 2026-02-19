@@ -20,22 +20,39 @@ type DataProps = {
   readonly prevState: DataState | undefined;
   readonly focus: string;
   readonly flow: string;
+  readonly pulse: string;
+  readonly trace: string;
   readonly annotations: readonly SceneAnnotation[];
 };
 
-export function Data({ state, focus, flow, annotations }: DataProps) {
+export function Data({ state, focus, flow, pulse, trace, annotations }: DataProps) {
   const layout = useMemo(() => computeLayout(state), [state]);
-  if (layout.width === 0 || layout.height === 0) return null;
+  const prevLayout = useMemo(
+    () => (prevState ? computeLayout(prevState) : undefined),
+    [prevState],
+  );
+
+  const prevNodeMap = new Map(
+    (prevLayout?.nodes ?? []).map((n) => [n.id, n]),
+  );
 
   const focusedIds = useMemo(
     () => resolveDataRegion(focus, state),
     [focus, state],
+  );
+  const pulsedIds = useMemo(
+    () => resolveDataRegion(pulse, state),
+    [pulse, state],
   );
 
   // Resolve flow region to a set of edge IDs that should animate
   const flowingEdgeIds = useMemo(
     () => resolveFlowEdges(flow, state),
     [flow, state],
+  );
+  const tracedEdgeIds = useMemo(
+    () => resolveFlowEdges(trace, state),
+    [trace, state],
   );
 
   // Only show the last annotation per node (single annotation constraint)
@@ -51,6 +68,8 @@ export function Data({ state, focus, flow, annotations }: DataProps) {
   const VIEW_PAD_TOP = 28;
   const VIEW_PAD_BOTTOM = 16;
 
+  if (layout.width === 0 || layout.height === 0) return null;
+
   return (
     <svg
       viewBox={`${-VIEW_PAD_X} ${-VIEW_PAD_TOP} ${layout.width + VIEW_PAD_X * 2} ${layout.height + VIEW_PAD_TOP + VIEW_PAD_BOTTOM}`}
@@ -63,6 +82,7 @@ export function Data({ state, focus, flow, annotations }: DataProps) {
           key={edge.id}
           edge={edge}
           flowing={flowingEdgeIds.has(edge.id)}
+          tracing={tracedEdgeIds.has(edge.id)}
         />
       ))}
       {layout.nodes.map((node) => (
@@ -70,6 +90,9 @@ export function Data({ state, focus, flow, annotations }: DataProps) {
           key={node.id}
           node={node}
           dimmed={focusedIds.length > 0 && !focusedIds.includes(node.id)}
+          pulsing={pulsedIds.includes(node.id)}
+          initialX={prevNodeMap.get(node.id)?.x}
+          initialY={prevNodeMap.get(node.id)?.y}
         />
       ))}
       {layout.pointers.map((pointer) => (

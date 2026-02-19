@@ -95,10 +95,12 @@ function SlotLayer({
               <ZoomSlot zoomScale={zoomScale}>
                 <Slot
                   state={slot}
-                  prevState={findPrevSlot(slot.name, prevScene)}
+                  prevState={resolvePrevSlot(slot.name, scene, prevScene)}
                   enterEffect={enter}
                   focus={scene.focus}
                   flow={scene.flow}
+                  pulse={scene.pulse}
+                  trace={scene.trace}
                   annotations={scene.annotations}
                 />
               </ZoomSlot>
@@ -198,12 +200,27 @@ function findPrevSlot(
   return prevScene.slots.find((s) => s.name === name);
 }
 
+function resolvePrevSlot(
+  name: string,
+  scene: SceneState,
+  prevScene: SceneState | undefined,
+): VisualizationState | undefined {
+  if (!prevScene) return undefined;
+  const transform = scene.transformFrom.find((t) => t.to === name);
+  if (transform) {
+    return prevScene.slots.find((s) => s.name === transform.from);
+  }
+  return findPrevSlot(name, prevScene);
+}
+
 function Slot({
   state,
   prevState,
   enterEffect,
   focus,
   flow,
+  pulse,
+  trace,
   annotations,
 }: {
   readonly state: VisualizationState;
@@ -211,6 +228,8 @@ function Slot({
   readonly enterEffect: SlotEnterEffect | undefined;
   readonly focus: string;
   readonly flow: string;
+  readonly pulse: string;
+  readonly trace: string;
   readonly annotations: readonly SceneAnnotation[];
 }) {
   switch (state.kind) {
@@ -231,6 +250,8 @@ function Slot({
           prevState={prevState?.kind === "data" ? prevState : undefined}
           focus={focus}
           flow={flow}
+          pulse={pulse}
+          trace={trace}
           annotations={annotations}
         />
       );
@@ -241,6 +262,8 @@ function Slot({
           prevState={prevState?.kind === "diagram" ? prevState : undefined}
           focus={focus}
           flow={flow}
+          pulse={pulse}
+          trace={trace}
           annotations={annotations}
         />
       );

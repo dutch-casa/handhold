@@ -69,6 +69,7 @@ function PreviewIframe({ srcdoc }: { readonly srcdoc: string }) {
   return (
     <iframe
       ref={iframeRef}
+      title="Preview"
       srcDoc={srcdoc}
       sandbox="allow-scripts"
       onLoad={handleLoad}

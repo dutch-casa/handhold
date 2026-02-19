@@ -18,6 +18,9 @@ const EMPTY_SCENE: SceneState = {
   epoch: 0,
   focus: "",
   flow: "",
+  pulse: "",
+  trace: "",
+  transformFrom: [],
   annotations: [],
   zoom: { scale: 1, target: "" },
 };
@@ -145,6 +148,24 @@ function applyVerb(
       return;
     }
 
+    case "show-group": {
+      const enterEffects = verb.targets.flatMap((target) =>
+        extractEffect(target, verb.animation),
+      );
+      const nextSlots = [...state.scene.slots];
+      for (const target of verb.targets) {
+        const block = blocks.get(target);
+        if (!block) continue;
+        const alreadyShown = nextSlots.some((s) => s.name === target);
+        if (!alreadyShown) {
+          nextSlots.push(block);
+          state.shownOrder.push(target);
+        }
+      }
+      state.scene = { ...state.scene, slots: nextSlots, enterEffects };
+      return;
+    }
+
     case "hide": {
       const exitEffects = extractEffect(verb.target, verb.animation);
 
@@ -154,6 +175,48 @@ function applyVerb(
         exitEffects,
       };
       state.shownOrder = state.shownOrder.filter((n) => n !== verb.target);
+      return;
+    }
+
+    case "hide-group": {
+      const exitEffects = verb.targets.flatMap((target) =>
+        extractEffect(target, verb.animation),
+      );
+      state.scene = {
+        ...state.scene,
+        slots: state.scene.slots.filter((s) => !verb.targets.includes(s.name)),
+        exitEffects,
+      };
+      state.shownOrder = state.shownOrder.filter(
+        (n) => !verb.targets.includes(n),
+      );
+      return;
+    }
+
+    case "transform": {
+      const fromBlock = blocks.get(verb.from);
+      const toBlock = blocks.get(verb.to);
+      if (!fromBlock || !toBlock) return;
+
+      const nextSlots = state.scene.slots.map((slot) =>
+        slot.name === verb.from ? toBlock : slot,
+      );
+      const enterEffects = extractEffect(verb.to, verb.animation);
+      const exitEffects = extractEffect(verb.from, verb.animation);
+
+      state.scene = {
+        ...state.scene,
+        slots: nextSlots,
+        enterEffects,
+        exitEffects,
+        transformFrom: [
+          ...state.scene.transformFrom,
+          { from: verb.from, to: verb.to },
+        ],
+      };
+      state.shownOrder = state.shownOrder.map((n) =>
+        n === verb.from ? verb.to : n,
+      );
       return;
     }
 
@@ -186,6 +249,22 @@ function applyVerb(
       state.scene = {
         ...state.scene,
         focus: verb.target === "none" ? "" : verb.target,
+      };
+      return;
+    }
+
+    case "pulse": {
+      state.scene = {
+        ...state.scene,
+        pulse: verb.target === "none" ? "" : verb.target,
+      };
+      return;
+    }
+
+    case "trace": {
+      state.scene = {
+        ...state.scene,
+        trace: verb.target === "none" ? "" : verb.target,
       };
       return;
     }

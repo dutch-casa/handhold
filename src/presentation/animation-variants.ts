@@ -37,6 +37,9 @@ const EASING: Record<EasingKind, (d: number) => MotionTransition> = {
   "ease-out": (d) => ({ duration: d, ease: "easeOut" as const }),
   "ease-in-out": (d) => ({ duration: d, ease: "easeInOut" as const }),
   linear: (d) => ({ duration: d, ease: "linear" as const }),
+  reveal: (d) => ({ duration: d, ease: [0.22, 1, 0.36, 1] }),
+  emphasis: (d) => ({ duration: d, ease: [0.34, 1.56, 0.64, 1] }),
+  handoff: (d) => ({ duration: d, ease: [0.2, 0.8, 0.2, 1] }),
 };
 
 const DEFAULT_FADE: MotionValues = { opacity: 0 };

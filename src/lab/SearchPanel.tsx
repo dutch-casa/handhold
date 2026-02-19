@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { Search, CaseSensitive, WholeWord, Regex, ChevronRight, FileText } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -110,6 +110,11 @@ export function SearchPanel({ workspacePath, onFileSelect, onGoToLine }: SearchP
     [onFileSelect, onGoToLine],
   );
 
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-col gap-2 px-3 py-2">
@@ -117,11 +122,11 @@ export function SearchPanel({ workspacePath, onFileSelect, onGoToLine }: SearchP
           <div className="relative flex-1">
             <Search className="absolute left-2 top-1/2 size-3 -translate-y-1/2 text-muted-foreground" />
             <Input
+              ref={inputRef}
               value={rawQuery}
               onChange={(e) => setRawQuery(e.target.value)}
               placeholder="Search files..."
               className="h-7 pl-7 text-xs"
-              autoFocus
             />
           </div>
           <ToggleButton active={caseSensitive} onClick={() => setCaseSensitive(!caseSensitive)} label="Match case">

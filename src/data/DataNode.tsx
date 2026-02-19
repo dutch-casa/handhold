@@ -5,22 +5,45 @@ import { colors, fonts, fontSizes, radii, spring, fade } from "@/app/theme";
 type DataNodeProps = {
   readonly node: PositionedNode;
   readonly dimmed?: boolean;
+  readonly pulsing?: boolean;
+  readonly initialX?: number;
+  readonly initialY?: number;
 };
 
 export function DataNode({
   node,
   dimmed = false,
+  pulsing = false,
+  initialX,
+  initialY,
 }: DataNodeProps) {
   const isNull = node.id === "__null__";
   const isCircle = node.shape === "circle";
   const strokeColor = dimmed ? colors.textDim : colors.accent;
   const nodeOpacity = dimmed ? 0.4 : 1;
 
+  const useInitial = Number.isFinite(initialX) && Number.isFinite(initialY);
+  const initialPos = {
+    x: useInitial ? (initialX as number) : node.x,
+    y: useInitial ? (initialY as number) : node.y,
+    opacity: useInitial ? nodeOpacity : 0,
+  };
+
   return (
     <motion.g
-      animate={{ x: node.x, y: node.y, opacity: nodeOpacity }}
-      initial={{ x: node.x, y: node.y, opacity: 0 }}
-      transition={{ x: spring, y: spring, opacity: fade }}
+      animate={{
+        x: node.x,
+        y: node.y,
+        opacity: nodeOpacity,
+        scale: pulsing ? [1, 1.08, 1] : 1,
+      }}
+      initial={initialPos}
+      transition={{
+        x: spring,
+        y: spring,
+        opacity: fade,
+        scale: pulsing ? { duration: 0.6, ease: "easeOut" } : fade,
+      }}
       {...(!dimmed ? { "data-focused": true } : {})}
     >
       {isCircle ? (

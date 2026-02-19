@@ -12,7 +12,11 @@ type CodeTokensProps = {
 
 export function CodeTokens({ tokens, dimmed, substringTarget, pointerAnnotation }: CodeTokensProps) {
   if (substringTarget.length === 0) {
-    return <span style={{ flex: 1 }}>{renderTokens(tokens, dimmed)}</span>;
+    return (
+      <span style={{ flex: 1 }}>
+        <TokenRun tokens={tokens} dimmed={dimmed} />
+      </span>
+    );
   }
 
   const segments = splitTokensAtSubstring(tokens, substringTarget);
@@ -21,9 +25,9 @@ export function CodeTokens({ tokens, dimmed, substringTarget, pointerAnnotation 
     <span style={{ flex: 1 }}>
       {segments.map((seg, i) =>
         seg.kind === "match" ? (
-          <span key={i} style={{ position: "relative", display: "inline" }}>
+          <span key={segmentKey(seg.tokens, i)} style={{ position: "relative", display: "inline" }}>
             <span style={{ borderBottom: `2px solid ${colors.accent}`, paddingBottom: 1 }}>
-              {renderTokens(seg.tokens, false)}
+              <TokenRun tokens={seg.tokens} dimmed={false} />
             </span>
             {pointerAnnotation.length > 0 && (
               <motion.span
@@ -50,17 +54,38 @@ export function CodeTokens({ tokens, dimmed, substringTarget, pointerAnnotation 
             )}
           </span>
         ) : (
-          <span key={i}>{renderTokens(seg.tokens, dimmed)}</span>
+          <span key={segmentKey(seg.tokens, i)}>
+            <TokenRun tokens={seg.tokens} dimmed={dimmed} />
+          </span>
         ),
       )}
     </span>
   );
 }
 
-function renderTokens(tokens: readonly ShikiToken[], dimmed: boolean) {
-  return tokens.map((token, i) => (
-    <span key={i} style={{ color: dimmed ? colors.textDim : token.color }}>
-      {token.content}
-    </span>
-  ));
+function TokenRun({
+  tokens,
+  dimmed,
+}: {
+  readonly tokens: readonly ShikiToken[];
+  readonly dimmed: boolean;
+}) {
+  return (
+    <>
+      {tokens.map((token, i) => (
+        <span
+          key={`${i}-${token.content}-${token.color}`}
+          style={{ color: dimmed ? colors.textDim : token.color }}
+        >
+          {token.content}
+        </span>
+      ))}
+    </>
+  );
+}
+
+function segmentKey(tokens: readonly ShikiToken[], index: number): string {
+  const first = tokens[0]?.content ?? "";
+  const last = tokens[tokens.length - 1]?.content ?? "";
+  return `${index}-${first}-${last}-${tokens.length}`;
 }

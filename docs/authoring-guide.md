@@ -115,6 +115,16 @@ Reveals a named visualization block on stage.
 
 If split mode is active, the block is added alongside existing blocks. Otherwise, it replaces whatever is currently shown.
 
+### show-group
+
+Reveals multiple blocks at once.
+
+```
+{{show-group: block-a,block-b fade 0.4s}}
+```
+
+Use when the concept requires simultaneous context, not sequential buildup.
+
 ### hide
 
 Removes a named block from stage.
@@ -126,6 +136,14 @@ Removes a named block from stage.
 
 - **target**: the block name (required)
 - **animation**: optional
+
+### hide-group
+
+Removes multiple blocks at once.
+
+```
+{{hide-group: block-a,block-b fade 0.3s}}
+```
 
 ### clear
 
@@ -142,6 +160,16 @@ Removes all blocks and resets the stage. Think of it as a scene break.
 - **animation**: optional duration and easing override
 
 Clear creates a hard boundary. The old scene fully exits before the new one enters. Use it between conceptual sections. Use show/hide for within-section changes.
+
+### transform
+
+Morph one block into another.
+
+```
+{{transform: block-a->block-b fade 0.4s}}
+```
+
+Use when you want continuity between two related views (e.g., an abstract diagram becoming a concrete one).
 
 ### split
 
@@ -173,6 +201,22 @@ Dims everything except the targeted region. Use it to direct attention to specif
 - **target**: a region name defined in the block's region footer, or `none` to clear focus
 
 Only one focus can be active at a time. Setting a new focus replaces the previous one. Focused elements get a yellow highlight (border/stroke), while everything else dims.
+
+### pulse
+
+Quickly emphasize a region without changing focus.
+
+```
+{{pulse: region-name}}
+```
+
+### trace
+
+Animates a path through a region (edges or connections).
+
+```
+{{trace: path-region}}
+```
 
 ### annotate
 
@@ -370,34 +414,52 @@ Diagrams render architecture-style node-and-edge visuals.
 
 ````
 ```diagram:system
+client [client]
+gw [api-gateway]
 api [service]
 db [database]
 cache [cache]
+client --> gw
+gw --> api
 api --> db
 api --reads--> cache
-{Backend: api, db, cache}
+{Backend: gw, api, db, cache}
 ---
 storage: db
 fast-path: cache
+gateway: gw
 ```
 ````
 
+**Node IDs** can contain letters, digits, underscores, and hyphens (e.g., `my-api`, `cache_01`).
+
 **Node types:**
-- `[service]` -- component box (default)
-- `[database]` -- cylinder
-- `[client]` -- client device icon
-- `[user]` -- user silhouette
-- `[server]` -- server rack
-- `[cache]` -- cache stack
-- `[queue]` -- queue stack
-- `[message-queue]` -- queue stack (messaging)
-- `[load-balancer]` -- load balancer hex
-- `[api-gateway]` -- gateway arch
+- `[service]` -- AWS EC2 icon (default)
+- `[database]` -- AWS RDS icon
+- `[client]` -- AWS Client icon
+- `[user]` -- AWS User icon
+- `[server]` -- AWS EC2 icon
+- `[cache]` -- AWS ElastiCache icon
+- `[queue]` -- AWS SQS icon
+- `[message-queue]` -- AWS SQS icon
+- `[load-balancer]` -- AWS ELB icon
+- `[api-gateway]` -- AWS API Gateway icon
+
+Nodes render as **icons with a label below** (not boxes with text). Every node type maps to a default AWS icon. Lucide icons are the fallback when no AWS icon maps.
+
+**Bracket syntax:** space-separated tokens inside `[...]`. Bare word sets the type. Key-value pairs for explicit options:
+
+```
+api [service]                          -- bare word sets type
+gw [api-gateway icon=aws:apigateway]   -- type + icon override
+cdn [type=service icon=aws:cloudfront] -- explicit type= prefix
+```
 
 **Optional icon override:**
 - **Default policy:** use AWS icons for all diagram nodes unless explicitly told otherwise.
-- Nodes render AWS icons for common infrastructure types. Use `icon=aws:<key>` to force a specific AWS icon.
-- Example: `edge [api-gateway icon=aws:apigateway]`
+- Add `icon=aws:<key>` to force a specific AWS icon.
+- Available keys: `apigateway`, `elb`, `rds`, `elasticache`, `sqs`, `s3`, `cloudfront`, `cognito`, `ec2`, `client`, `user`, `users`
+- Aliases also work: `api-gateway`, `load-balancer`, `database`, `cache`, `queue`, `message-queue`, `object-store`, `cdn`, `auth`, `server`, `service`, `compute`
 
 **Edges:**
 - `a --> b` -- directed
@@ -660,6 +722,9 @@ Default is `0.3s`.
 | `ease-in-out` | Gentle start and stop |
 | `spring` | Physics-based spring with slight overshoot |
 | `linear` | Constant speed |
+| `reveal` | Smooth cinematic reveal |
+| `emphasis` | Punchy overshoot for emphasis |
+| `handoff` | Calm handoff between scenes |
 
 ### When to animate
 

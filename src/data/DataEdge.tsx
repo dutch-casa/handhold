@@ -5,6 +5,7 @@ import { colors, fonts, fontSizes, radii, spring, fade } from "@/app/theme";
 type DataEdgeProps = {
   readonly edge: PositionedEdge;
   readonly flowing?: boolean;
+  readonly tracing?: boolean;
 };
 
 const ARROW_SIZE = 6;
@@ -17,7 +18,13 @@ const FLOW_STROKE_TRANSITION = {
   strokeWidth: fade,
 };
 
-export function DataEdge({ edge, flowing = false }: DataEdgeProps) {
+const TRACE_STROKE_TRANSITION = {
+  strokeDashoffset: { repeat: Infinity, duration: 0.6, ease: "linear" as const },
+  stroke: fade,
+  strokeWidth: fade,
+};
+
+export function DataEdge({ edge, flowing = false, tracing = false }: DataEdgeProps) {
   const dx = edge.x2 - edge.x1;
   const dy = edge.y2 - edge.y1;
   const len = Math.sqrt(dx * dx + dy * dy);
@@ -40,7 +47,19 @@ export function DataEdge({ edge, flowing = false }: DataEdgeProps) {
   const midX = (edge.x1 + edge.x2) / 2;
   const midY = (edge.y1 + edge.y2) / 2;
 
-  const strokeColor = flowing ? colors.secondary : colors.textMuted;
+  const strokeColor = tracing
+    ? colors.accent
+    : flowing
+      ? colors.secondary
+      : colors.textMuted;
+  const strokeWidth = tracing ? 2.2 : flowing ? 2 : 1.5;
+  const dashArray = tracing ? "6 4" : flowing ? "8 4" : "none";
+  const dashOffset = tracing ? [0, -24] : flowing ? [0, -20] : 0;
+  const transition = tracing
+    ? TRACE_STROKE_TRANSITION
+    : flowing
+      ? FLOW_STROKE_TRANSITION
+      : spring;
 
   return (
     <motion.g
@@ -53,11 +72,11 @@ export function DataEdge({ edge, flowing = false }: DataEdgeProps) {
         animate={{
           ...lineProps,
           stroke: strokeColor,
-          strokeWidth: flowing ? 2 : 1.5,
-          strokeDashoffset: flowing ? [0, -20] : 0,
+          strokeWidth,
+          strokeDashoffset: dashOffset,
         }}
-        transition={flowing ? FLOW_STROKE_TRANSITION : spring}
-        strokeDasharray={flowing ? "8 4" : "none"}
+        transition={transition}
+        strokeDasharray={dashArray}
       />
       <motion.polygon
         initial={{ points: arrowPts }}
@@ -79,7 +98,7 @@ export function DataEdge({ edge, flowing = false }: DataEdgeProps) {
             y={midY}
             textAnchor="middle"
             dominantBaseline="central"
-            fill={flowing ? colors.secondary : colors.textMuted}
+            fill={strokeColor}
             fontFamily={fonts.code}
             fontSize={fontSizes.codeSmall}
           >
