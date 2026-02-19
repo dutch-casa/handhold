@@ -3,7 +3,11 @@ fn main() {
     let profile = std::env::var("PROFILE").unwrap_or_default();
 
     if profile == "release" {
-        let exe_suffix = if target.contains("windows") { ".exe" } else { "" };
+        let exe_suffix = if target.contains("windows") {
+            ".exe"
+        } else {
+            ""
+        };
         let bin_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("binaries")
             .join(format!("koko-{target}{exe_suffix}"));
@@ -35,9 +39,6 @@ fn main() {
     }
 
     // Expose target triple so tts.rs can resolve the sidecar binary path in dev mode.
-    println!(
-        "cargo:rustc-env=TARGET={}",
-        target
-    );
+    println!("cargo:rustc-env=TARGET={}", target);
     tauri_build::build()
 }

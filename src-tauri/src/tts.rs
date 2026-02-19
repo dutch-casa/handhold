@@ -131,8 +131,8 @@ fn cache_dir() -> PathBuf {
 
 fn resolve_espeak_data_dir() -> Option<PathBuf> {
     // Dev: bundled alongside the kokoro resources checkout.
-    let dev_candidate = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("resources/piper/espeak-ng-data");
+    let dev_candidate =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/piper/espeak-ng-data");
     if dev_candidate.is_dir() {
         return Some(dev_candidate);
     }
@@ -196,8 +196,7 @@ fn wav_wrap(pcm: &[u8], sample_rate: u32) -> Vec<u8> {
 /// Decode WAV → mono int16 PCM.
 /// Supports PCM 16-bit and IEEE float 32-bit (including WAVE_FORMAT_EXTENSIBLE).
 fn wav_to_int16_pcm(wav_bytes: &[u8]) -> Result<(Vec<u8>, u32), String> {
-    let (format, num_channels, sample_rate, bits_per_sample, data) =
-        parse_wav_chunks(wav_bytes)?;
+    let (format, num_channels, sample_rate, bits_per_sample, data) = parse_wav_chunks(wav_bytes)?;
 
     match (format, bits_per_sample) {
         (1, 16) => pcm16_to_mono(data, num_channels, sample_rate),
@@ -210,9 +209,7 @@ fn wav_to_int16_pcm(wav_bytes: &[u8]) -> Result<(Vec<u8>, u32), String> {
     }
 }
 
-fn parse_wav_chunks(
-    wav_bytes: &[u8],
-) -> Result<(u16, usize, u32, u16, &[u8]), String> {
+fn parse_wav_chunks(wav_bytes: &[u8]) -> Result<(u16, usize, u32, u16, &[u8]), String> {
     if wav_bytes.len() < 12 {
         return Err("WAV too short to contain RIFF header".into());
     }
@@ -246,12 +243,11 @@ fn parse_wav_chunks(
                 wav_bytes[chunk_start],
                 wav_bytes[chunk_start + 1],
             ]));
-            num_channels = Some(
-                u16::from_le_bytes([
-                    wav_bytes[chunk_start + 2],
-                    wav_bytes[chunk_start + 3],
-                ]) as usize,
-            );
+            num_channels =
+                Some(
+                    u16::from_le_bytes([wav_bytes[chunk_start + 2], wav_bytes[chunk_start + 3]])
+                        as usize,
+                );
             sample_rate = Some(u32::from_le_bytes([
                 wav_bytes[chunk_start + 4],
                 wav_bytes[chunk_start + 5],
@@ -322,12 +318,7 @@ fn float32_to_mono(
         let mut sum = 0.0f32;
         for ch in 0..num_channels {
             let off = ch * 4;
-            sum += f32::from_le_bytes([
-                frame[off],
-                frame[off + 1],
-                frame[off + 2],
-                frame[off + 3],
-            ]);
+            sum += f32::from_le_bytes([frame[off], frame[off + 1], frame[off + 2], frame[off + 3]]);
         }
         let mono = (sum / num_channels as f32).clamp(-1.0, 1.0);
         let int_val = (mono * 32767.0) as i16;

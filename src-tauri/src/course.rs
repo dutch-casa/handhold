@@ -797,15 +797,18 @@ pub async fn courses_dir_path() -> Result<String, String> {
 pub async fn course_sync(db: State<'_, Db>) -> Result<SyncResult, String> {
     let dir = courses_dir();
     if !dir.exists() {
-        return Ok(SyncResult { added: 0, removed: 0 });
+        return Ok(SyncResult {
+            added: 0,
+            removed: 0,
+        });
     }
 
     let mut added: u32 = 0;
     let mut removed: u32 = 0;
 
     // Scan for new courses on disk that aren't in the DB
-    let entries = std::fs::read_dir(&dir)
-        .map_err(|e| format!("Failed to read courses directory: {e}"))?;
+    let entries =
+        std::fs::read_dir(&dir).map_err(|e| format!("Failed to read courses directory: {e}"))?;
 
     for entry in entries.flatten() {
         let path = entry.path();

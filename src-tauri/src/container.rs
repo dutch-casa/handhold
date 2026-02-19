@@ -40,10 +40,7 @@ fn search_dirs() -> Vec<String> {
             "/usr/local/bin".to_string(),
         ]);
     } else if cfg!(target_os = "linux") {
-        dirs.extend([
-            "/usr/bin".to_string(),
-            "/usr/local/bin".to_string(),
-        ]);
+        dirs.extend(["/usr/bin".to_string(), "/usr/local/bin".to_string()]);
     } else if cfg!(target_os = "windows") {
         // Docker Desktop
         if let Ok(pf) = std::env::var("ProgramFiles") {
@@ -150,8 +147,7 @@ pub(crate) fn resolve_binary() -> Result<String, String> {
     if let Some(ref path) = *guard {
         return Ok(path.clone());
     }
-    let (path, _) = detect_binary()
-        .ok_or_else(|| "No container runtime found".to_string())?;
+    let (path, _) = detect_binary().ok_or_else(|| "No container runtime found".to_string())?;
     *guard = Some(path.clone());
     Ok(path)
 }

@@ -2,6 +2,7 @@ import { Cpu, Database, Inbox, Layers, Monitor, Server, User } from "lucide-reac
 import { motion } from "motion/react";
 import type { PositionedDiagramNode } from "./layout";
 import { defaultAwsIconKey, resolveAwsIconComponent } from "./aws-icon-registry";
+import { resolveTechIconComponent } from "./tech-icon-registry";
 import { colors, fonts, fontSizes, spring, fade } from "@/app/theme";
 
 type DiagramNodeProps = {
@@ -30,8 +31,9 @@ export function DiagramNode({
   const nodeOpacity = dimmed ? 0.4 : 1;
   const iconKey = node.icon ?? defaultIconKey(node.nodeType);
   const AwsIcon = iconKey ? resolveAwsIconComponent(iconKey) : null;
-  const LucideIcon = AwsIcon ? null : lucideIconFor(node.nodeType);
-  const hasIcon = AwsIcon !== null || LucideIcon !== null;
+  const TechIcon = !AwsIcon && iconKey ? resolveTechIconComponent(iconKey) : null;
+  const LucideIcon = !AwsIcon && !TechIcon ? lucideIconFor(node.nodeType) : null;
+  const hasIcon = AwsIcon !== null || TechIcon !== null || LucideIcon !== null;
 
   if (!hasIcon) {
     return null;
@@ -77,6 +79,14 @@ export function DiagramNode({
           x={iconX}
           y={iconY}
           className={awsIconClassName(node.nodeType, iconKey)}
+        />
+      ) : TechIcon ? (
+        <TechIcon
+          x={iconX}
+          y={iconY}
+          width={iconSize}
+          height={iconSize}
+          color={colors.text}
         />
       ) : LucideIcon ? (
         <LucideIcon

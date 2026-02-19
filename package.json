@@ -14,6 +14,7 @@
     "@base-ui/react": "^1.2.0",
     "@dnd-kit/react": "^0.3.0",
     "@fontsource-variable/inter": "^5.2.8",
+    "@icons-pack/react-simple-icons": "12.2.0",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/react-hotkeys": "^0.1.0",
     "@tanstack/react-query": "^5.90.21",
