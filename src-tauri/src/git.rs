@@ -10,15 +10,14 @@ pub struct LineChange {
 
 /// Gutter decorations: per-line add/modify/delete markers for unstaged changes.
 #[tauri::command]
-pub async fn git_line_diff(path: String) -> Result<Vec<LineChange>, String> {
-    // --unified=0: only changed hunks, no context lines
+pub async fn git_line_diff(path: String, workspace: String) -> Result<Vec<LineChange>, String> {
     let output = Command::new("git")
+        .current_dir(&workspace)
         .args(["diff", "--unified=0", "--no-color", "--", &path])
         .output()
         .map_err(|e| format!("git not available: {e}"))?;
 
     if !output.status.success() {
-        // Not a git repo or file not tracked — not an error, just no changes
         return Ok(vec![]);
     }
 
@@ -28,8 +27,9 @@ pub async fn git_line_diff(path: String) -> Result<Vec<LineChange>, String> {
 
 /// Like git_line_diff but includes staged changes — used for "all unsaved work" gutter.
 #[tauri::command]
-pub async fn git_line_diff_head(path: String) -> Result<Vec<LineChange>, String> {
+pub async fn git_line_diff_head(path: String, workspace: String) -> Result<Vec<LineChange>, String> {
     let output = Command::new("git")
+        .current_dir(&workspace)
         .args(["diff", "HEAD", "--unified=0", "--no-color", "--", &path])
         .output()
         .map_err(|e| format!("git not available: {e}"))?;
@@ -40,6 +40,65 @@ pub async fn git_line_diff_head(path: String) -> Result<Vec<LineChange>, String>
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     Ok(parse_unified_diff(&stdout))
+}
+
+// --- Git status for file decorations ---
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitStatusEntry {
+    pub path: String,
+    pub status: &'static str,
+}
+
+/// Returns git status for all files in the workspace (for explorer decorations).
+#[tauri::command]
+pub async fn git_status_files(workspace: String) -> Result<Vec<GitStatusEntry>, String> {
+    let output = Command::new("git")
+        .current_dir(&workspace)
+        .args(["status", "--porcelain", "-uall"])
+        .output()
+        .map_err(|e| format!("git not available: {e}"))?;
+
+    if !output.status.success() {
+        return Ok(vec![]);
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    Ok(parse_porcelain(&stdout))
+}
+
+fn parse_porcelain(output: &str) -> Vec<GitStatusEntry> {
+    let mut entries = Vec::new();
+    for line in output.lines() {
+        if line.len() < 4 {
+            continue;
+        }
+        let xy = &line[..2];
+        let path = &line[3..];
+
+        // For renames "R  old -> new", take the new path
+        let path = if let Some((_old, new)) = path.split_once(" -> ") {
+            new
+        } else {
+            path
+        };
+
+        let status = match xy {
+            "??" => "untracked",
+            s if s.starts_with('R') || s.ends_with('R') => "renamed",
+            s if s.starts_with('A') || s.ends_with('A') => "added",
+            s if s.starts_with('D') || s.ends_with('D') => "deleted",
+            s if s.starts_with('M') || s.ends_with('M') || s.starts_with('U') => "modified",
+            _ => continue,
+        };
+
+        entries.push(GitStatusEntry {
+            path: path.to_string(),
+            status,
+        });
+    }
+    entries
 }
 
 fn parse_unified_diff(diff: &str) -> Vec<LineChange> {

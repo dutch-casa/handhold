@@ -75,6 +75,14 @@ export function Lab({ manifest, workspacePath, nav }: LabProps) {
       { id: "focus-services", label: "Focus Services", execute: () => useSettingsStore.getState().setSidebarPanel("services") },
       { id: "focus-testing", label: "Focus Testing", execute: () => useSettingsStore.getState().setSidebarPanel("testing") },
       { id: "focus-settings", label: "Focus Settings", execute: () => useSettingsStore.getState().setSidebarPanel("settings") },
+      { id: "toggle-minimap", label: "Toggle Minimap", execute: () => {
+        const s = useSettingsStore.getState();
+        s.setEditor({ ...s.editor, minimap: !s.editor.minimap });
+      }},
+      { id: "toggle-sticky-scroll", label: "Toggle Sticky Scroll", execute: () => {
+        const s = useSettingsStore.getState();
+        s.setEditor({ ...s.editor, stickyScroll: !s.editor.stickyScroll });
+      }},
       { id: "close-all-tabs", label: "Close All Tabs", execute: () => lab.editor.closeAll() },
       { id: "close-saved-tabs", label: "Close Saved Tabs", execute: () => lab.editor.closeSaved() },
     ],
@@ -112,7 +120,7 @@ export function Lab({ manifest, workspacePath, nav }: LabProps) {
             onGoToLine={lab.editor.goToLine}
           />
         }
-        editor={<EditorArea editor={lab.editor} requestClose={lab.ui.requestClose} />}
+        editor={<EditorArea editor={lab.editor} requestClose={lab.ui.requestClose} tree={lab.files.tree} rootPath={lab.files.rootPath} />}
         bottomPanel={
           <BottomPanel
             terminal={<TerminalPanel terminal={lab.terminal} />}

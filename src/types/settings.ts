@@ -10,6 +10,8 @@ export type EditorSettings = {
   readonly wordWrap: boolean;
   readonly lineNumbers: LineNumbers;
   readonly bracketColors: boolean;
+  readonly minimap: boolean;
+  readonly stickyScroll: boolean;
   readonly autoSave: boolean;
   readonly autoSaveDelay: number;
 };
@@ -31,6 +33,8 @@ export const DEFAULT_EDITOR: EditorSettings = {
   wordWrap: true,
   lineNumbers: "on",
   bracketColors: true,
+  minimap: true,
+  stickyScroll: false,
   autoSave: false,
   autoSaveDelay: 1000,
 } as const;

@@ -55,6 +55,7 @@ export type LabFilesSlice = {
   readonly rootPath: string;
   readonly select: (path: string) => void;
   readonly ops: FileOps;
+  readonly refresh: () => void;
 };
 
 export type LabEditorSlice = {
@@ -76,6 +77,7 @@ export type LabEditorSlice = {
   readonly closeOthers: (path: string) => void;
   readonly closeAll: () => void;
   readonly closeSaved: () => void;
+  readonly reorderTabs: (oldIndex: number, newIndex: number) => void;
   readonly goToLine: (line: number) => void;
   readonly openAt: (path: string, line: number, column: number) => void;
   readonly setEditorInstance: (editor: monacoEditor.IStandaloneCodeEditor | null) => void;
@@ -87,6 +89,7 @@ export type LabTerminalSlice = {
   readonly close: (id: string) => Promise<void>;
   readonly select: (id: string) => void;
   readonly rename: (id: string, title: string) => void;
+  readonly reorderTerminals: (oldIndex: number, newIndex: number) => void;
   readonly getHandle: (id: string) => TerminalHandle | undefined;
 };
 
@@ -194,7 +197,7 @@ export function useLab(manifest: ParsedLab, workspacePath: string): Lab {
       : rawLifecycle;
 
   // File tree via React Query + fs watcher
-  const { tree, loading: treeLoading } = useFileTree(workspacePath);
+  const { tree, loading: treeLoading, refresh: refreshTree } = useFileTree(workspacePath);
 
   // File CRUD with automatic cache invalidation
   const fileOps = useFileOps(workspacePath);
@@ -254,7 +257,7 @@ export function useLab(manifest: ParsedLab, workspacePath: string): Lab {
   });
 
   // Git gutter markers for active file
-  const gitChanges = useGitDiff(state.activePath);
+  const gitChanges = useGitDiff(state.activePath, workspacePath);
 
   // Editor settings from persisted store
   const { vimMode, fontSize, tabSize } = useSettingsStore((s) => s.editor);
@@ -373,6 +376,7 @@ export function useLab(manifest: ParsedLab, workspacePath: string): Lab {
       rootPath: workspacePath,
       select: state.openFile,
       ops: fileOps,
+      refresh: refreshTree,
     },
     editor: {
       tabs: editorTabs,
@@ -393,6 +397,7 @@ export function useLab(manifest: ParsedLab, workspacePath: string): Lab {
       closeOthers: state.closeOthers,
       closeAll: state.closeAll,
       closeSaved: state.closeSaved,
+      reorderTabs: state.reorderTabs,
       goToLine,
       openAt,
       setEditorInstance,
@@ -403,6 +408,7 @@ export function useLab(manifest: ParsedLab, workspacePath: string): Lab {
       close: terminals.closeTerminal,
       select: state.setActiveTerminal,
       rename: state.renameTerminal,
+      reorderTerminals: state.reorderTerminals,
       getHandle: terminals.getHandle,
     },
     test: {

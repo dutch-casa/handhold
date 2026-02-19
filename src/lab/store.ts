@@ -73,6 +73,8 @@ type LabStoreActions = {
   openPaletteCommands: () => void;
   setShortcutsVisible: (visible: boolean) => void;
   setGoToLineOpen: (open: boolean) => void;
+  reorderTabs: (oldIndex: number, newIndex: number) => void;
+  reorderTerminals: (oldIndex: number, newIndex: number) => void;
   closeOthers: (path: string) => void;
   closeAll: () => void;
   closeSaved: () => void;
@@ -227,6 +229,24 @@ export function createLabStore(lab: ParsedLab) {
     openPaletteCommands: () => set({ paletteOpen: true, paletteCommandMode: true }),
     setShortcutsVisible: (visible) => set({ shortcutsVisible: visible }),
     setGoToLineOpen: (open) => set({ goToLineOpen: open }),
+
+    reorderTabs: (oldIndex, newIndex) => {
+      const paths = [...get().openPaths];
+      const [moved] = paths.splice(oldIndex, 1);
+      if (moved !== undefined) {
+        paths.splice(newIndex, 0, moved);
+        set({ openPaths: paths });
+      }
+    },
+
+    reorderTerminals: (oldIndex, newIndex) => {
+      const tabs = [...get().terminalTabs];
+      const [moved] = tabs.splice(oldIndex, 1);
+      if (moved !== undefined) {
+        tabs.splice(newIndex, 0, moved);
+        set({ terminalTabs: tabs });
+      }
+    },
 
     // { path ∈ openPaths ∧ path ≠ p } closeOthers(p) {
     //   openPaths = [p], activePath = p, dirtyPaths ∩ {p} }

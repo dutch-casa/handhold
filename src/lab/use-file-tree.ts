@@ -10,6 +10,7 @@ import type { FileTreeNode } from "@/types/lab";
 export function useFileTree(workspacePath: string | undefined): {
   tree: readonly FileTreeNode[];
   loading: boolean;
+  refresh: () => void;
 } {
   const queryClient = useQueryClient();
 
@@ -50,5 +51,9 @@ export function useFileTree(workspacePath: string | undefined): {
       ? buildFileTree(entries, workspacePath)
       : [];
 
-  return { tree, loading: isLoading };
+  const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: ["file-tree", workspacePath] });
+  };
+
+  return { tree, loading: isLoading, refresh };
 }

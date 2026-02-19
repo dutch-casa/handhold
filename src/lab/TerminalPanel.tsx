@@ -7,7 +7,7 @@ import type { LabTerminalSlice } from "@/lab/use-lab";
 // Only the active tab is visible.
 
 export function TerminalPanel({ terminal }: { readonly terminal: LabTerminalSlice }) {
-  const { tabs, spawn, close, select, rename, getHandle } = terminal;
+  const { tabs, spawn, close, select, rename, reorderTerminals, getHandle } = terminal;
 
   return (
     <div className="flex h-full flex-col">
@@ -17,6 +17,7 @@ export function TerminalPanel({ terminal }: { readonly terminal: LabTerminalSlic
         onClose={close}
         onSpawn={spawn}
         onRename={rename}
+        onReorder={reorderTerminals}
       />
       <div className="relative flex-1 overflow-hidden">
         {tabs.map((tab) => {

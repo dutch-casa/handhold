@@ -126,6 +126,26 @@ export function SettingsPanel() {
               />
             </label>
 
+            <label htmlFor="setting-minimap" className="flex cursor-pointer items-center justify-between">
+              <span className="text-xs text-muted-foreground">Minimap</span>
+              <Switch
+                id="setting-minimap"
+                size="sm"
+                checked={editor.minimap}
+                onCheckedChange={(checked) => update({ minimap: checked })}
+              />
+            </label>
+
+            <label htmlFor="setting-sticky-scroll" className="flex cursor-pointer items-center justify-between">
+              <span className="text-xs text-muted-foreground">Sticky scroll</span>
+              <Switch
+                id="setting-sticky-scroll"
+                size="sm"
+                checked={editor.stickyScroll}
+                onCheckedChange={(checked) => update({ stickyScroll: checked })}
+              />
+            </label>
+
             <label htmlFor="setting-auto-save" className="flex cursor-pointer items-center justify-between">
               <span className="text-xs text-muted-foreground">Auto save</span>
               <Switch

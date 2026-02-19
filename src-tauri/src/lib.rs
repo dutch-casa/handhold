@@ -130,6 +130,7 @@ pub fn run() {
             // Git
             git::git_line_diff,
             git::git_line_diff_head,
+            git::git_status_files,
             // Container orchestration
             container::detect_container_runtime,
             container::check_container_runtime,

@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/context-menu";
 import type { FileTreeNode } from "@/types/lab";
 import type { FileOps } from "@/lab/use-file-ops";
+import type { GitFileStatus } from "@/lab/tauri/git";
 import { ChevronRight, Folder, FolderOpen, FilePlus, FolderPlus, Pencil, Trash2, Copy } from "lucide-react";
 import { FileIcon } from "@/lab/file-icons";
 
@@ -18,9 +19,10 @@ type FileExplorerNodeProps = {
   readonly depth: number;
   readonly onSelect: (path: string) => void;
   readonly ops: FileOps;
+  readonly gitStatus: ReadonlyMap<string, GitFileStatus>;
 };
 
-function InlineInput({
+export function InlineInput({
   defaultValue,
   onConfirm,
   onCancel,
@@ -74,6 +76,14 @@ function parentPath(path: string): string {
 }
 
 // The row content — shared between file and folder nodes
+const GIT_COLOR: Record<GitFileStatus, string> = {
+  modified: "text-yellow-400",
+  added: "text-green-400",
+  deleted: "text-red-400",
+  untracked: "text-green-400/70",
+  renamed: "text-cyan-400",
+};
+
 function NodeRow({
   node,
   depth,
@@ -85,6 +95,7 @@ function NodeRow({
   dragRef,
   setInlineAction,
   setExpanded,
+  gitColor,
 }: {
   readonly node: FileTreeNode;
   readonly depth: number;
@@ -96,6 +107,7 @@ function NodeRow({
   readonly dragRef: (el: HTMLElement | null) => void;
   readonly setInlineAction: (a: InlineAction | undefined) => void;
   readonly setExpanded: (fn: (prev: boolean) => boolean) => void;
+  readonly gitColor: string | undefined;
 }) {
   const indent = depth * 12;
 
@@ -157,7 +169,7 @@ function NodeRow({
               onCancel={() => setInlineAction(undefined)}
             />
           ) : (
-            <span className="truncate">{node.name}</span>
+            <span className={`truncate ${gitColor ?? ""}`}>{node.name}</span>
           )}
         </div>
       </ContextMenuTrigger>
@@ -195,7 +207,7 @@ function NodeRow({
   );
 }
 
-export function FileExplorerNode({ node, depth, onSelect, ops }: FileExplorerNodeProps) {
+export function FileExplorerNode({ node, depth, onSelect, ops, gitStatus }: FileExplorerNodeProps) {
   const [expanded, setExpanded] = useState(false);
   const [inlineAction, setInlineAction] = useState<InlineAction | undefined>(undefined);
 
@@ -203,14 +215,17 @@ export function FileExplorerNode({ node, depth, onSelect, ops }: FileExplorerNod
 
   const isRenaming = inlineAction?.kind === "rename";
 
-  // --- Files: just draggable, no drop zone ---
+  // Resolve git color for this node from relative-path-based status map
+  const relativePath = node.path;
+  const status = gitStatus.get(relativePath);
+  const gitColor = status !== undefined ? GIT_COLOR[status] : undefined;
+
   if (node.kind === "file") {
     return (
       <NodeRow
         node={node}
         depth={depth}
         isDragging={isDragging}
-
         isRenaming={isRenaming}
         showOpen={false}
         onSelect={onSelect}
@@ -218,11 +233,11 @@ export function FileExplorerNode({ node, depth, onSelect, ops }: FileExplorerNod
         dragRef={dragRef}
         setInlineAction={setInlineAction}
         setExpanded={setExpanded}
+        gitColor={gitColor}
       />
     );
   }
 
-  // --- Folders: droppable wrapper around row + children ---
   return (
     <FolderDropZone node={node}>
       {(isDropTarget) => (
@@ -238,6 +253,7 @@ export function FileExplorerNode({ node, depth, onSelect, ops }: FileExplorerNod
             dragRef={dragRef}
             setInlineAction={setInlineAction}
             setExpanded={setExpanded}
+            gitColor={gitColor}
           />
 
           {expanded && inlineAction !== undefined && inlineAction.kind !== "rename" ? (
@@ -274,6 +290,7 @@ export function FileExplorerNode({ node, depth, onSelect, ops }: FileExplorerNod
                   depth={depth + 1}
                   onSelect={onSelect}
                   ops={ops}
+                  gitStatus={gitStatus}
                 />
               ))
             : null}

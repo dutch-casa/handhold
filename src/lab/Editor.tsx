@@ -163,7 +163,7 @@ export function Editor({
   const vimRef = useRef<{ dispose: () => void } | null>(null);
   const decorationsRef = useRef<monaco.editor.IEditorDecorationsCollection | null>(null);
 
-  const { vimMode, ligatures, wordWrap, lineNumbers: lineNumbersMode, bracketColors } =
+  const { vimMode, ligatures, wordWrap, lineNumbers: lineNumbersMode, bracketColors, minimap, stickyScroll } =
     useSettingsStore((s) => s.editor);
 
   const handleSave = useCallback((ed: monaco.editor.IStandaloneCodeEditor) => {
@@ -187,7 +187,8 @@ export function Editor({
       matchBrackets: bracketColors ? "always" : "never",
       fontLigatures: ligatures,
       fontFamily: "'JetBrains Mono', 'SF Mono', 'Fira Code', monospace",
-      minimap: { enabled: true },
+      minimap: { enabled: minimap },
+      stickyScroll: { enabled: stickyScroll },
       scrollBeyondLastLine: false,
       renderLineHighlight: "all",
       cursorBlinking: "smooth",
@@ -297,7 +298,7 @@ export function Editor({
       editorRef.current = null;
       onViewDestroyed?.();
     };
-  }, [ext, vimMode, ligatures, wordWrap, lineNumbersMode, bracketColors, fontSize, tabSize]); // eslint-disable-line react-hooks/exhaustive-deps -- content is initial value
+  }, [ext, vimMode, ligatures, wordWrap, lineNumbersMode, bracketColors, minimap, stickyScroll, fontSize, tabSize]); // eslint-disable-line react-hooks/exhaustive-deps -- content is initial value
 
   // Push git diff markers as gutter decorations
   useEffect(() => {
