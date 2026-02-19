@@ -23,6 +23,8 @@ const EMPTY_SCENE: SceneState = {
   transformFrom: [],
   annotations: [],
   zoom: { scale: 1, target: "" },
+  pan: "",
+  draw: "",
 };
 
 export function buildSceneSequence(
@@ -294,6 +296,26 @@ function applyVerb(
         ...state.scene,
         flow: verb.target === "none" ? "" : verb.target,
       };
+      return;
+    }
+
+    case "pan": {
+      state.scene = {
+        ...state.scene,
+        pan: verb.target === "none" ? "" : verb.target,
+      };
+      return;
+    }
+
+    case "draw": {
+      state.scene = {
+        ...state.scene,
+        draw: verb.target === "none" ? "" : verb.target,
+      };
+      return;
+    }
+
+    case "play": {
       return;
     }
 

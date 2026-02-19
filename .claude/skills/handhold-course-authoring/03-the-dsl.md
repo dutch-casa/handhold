@@ -208,6 +208,47 @@ Mark a path or set of elements as "active." Used in data structures and diagrams
 - **`none`**: Clears flow highlighting.
 - Used for: algorithm traces, request flows, data movement.
 
+### pan
+
+Translate the viewport to center on a named region. Orthogonal to zoom — pan translates, zoom scales. They compose when both active.
+
+```
+{{pan: region-name}}
+{{pan: none}}
+```
+
+- **target**: Region name to center on.
+- **`none`**: Reset pan (center on default position).
+- Use for navigating large visualizations (wide diagrams, long code blocks).
+- Pan and zoom can be combined: `{{pan: far-region}} {{zoom: 1.3x}}`
+
+### draw
+
+Animate edges drawing themselves like a pen stroke. One-shot effect (not looping like flow/trace).
+
+```
+{{draw: region-name}}
+{{draw: none}}
+```
+
+- **target**: Region name representing edges to draw.
+- **`none`**: Clear draw state.
+- Edges animate from source to target with a trailing arrowhead that fades in after the stroke completes.
+- Use for: revealing graph connections one at a time, algorithm edge discovery, building up a path incrementally.
+- Unlike `flow` (looping dash animation) or `trace` (highlighted path), `draw` is a one-shot reveal.
+
+### play
+
+Execute a named sequence block and expand its output into the narration stream.
+
+```
+{{play: seq-name}}
+```
+
+- **target**: Name of a `seq` block defined in the same step.
+- Expands at parse time into interleaved narration text and triggers.
+- See "Sequence Blocks" section below for authoring seq blocks.
+
 ### advance
 
 Bare text triggers or explicit `{{advance}}`. Creates a timeline marker without a visual change.
@@ -579,6 +620,8 @@ Scene = {
   flow:           "path" or "" (none)
   pulse:          "region" or "" (none)
   trace:          "path" or "" (none)
+  pan:            "region" or "" (none)
+  draw:           "region" or "" (none)
   annotations:    [{target, text}, ...]
   zoom:           {scale, target}
   transformFrom:  [{from, to}, ...]
@@ -605,5 +648,112 @@ Scene = {
 | `annotate` | Add/replace annotation for target |
 | `zoom` | Set scale and target |
 | `flow` | Set flow path. `none` clears it. |
+| `pan` | Set viewport pan target. `none` clears it. |
+| `draw` | Set edges to draw (one-shot animation). `none` clears it. |
+| `play` | Expand a seq block into narration+triggers (parse-time only). |
 
-**What `clear` resets:** Slots, focus, flow, pulse, trace, annotations, zoom, transformFrom. It also increments epoch, signaling a hard visual boundary to the renderer.
+**What `clear` resets:** Slots, focus, flow, pulse, trace, pan, draw, annotations, zoom, transformFrom. It also increments epoch, signaling a hard visual boundary to the renderer.
+
+## Sequence Blocks
+
+Seq blocks are generator functions that produce animation commands at parse time. They let you drive animations with algorithms instead of hand-authoring every trigger.
+
+### Syntax
+
+````markdown
+```seq:name target=block-name
+// generator body — JavaScript with yield
+const queue = ["A"];
+const visited = new Set();
+
+while (queue.length > 0) {
+  const node = queue.shift();
+  if (visited.has(node)) continue;
+  visited.add(node);
+
+  yield narrate(`Visiting node ${node}.`);
+  yield pulse(node);
+
+  for (const neighbor of data.neighbors(node)) {
+    yield narrate(`Drawing edge to ${neighbor}.`);
+    yield draw(`${node}-to-${neighbor}`);
+    queue.push(neighbor);
+  }
+}
+yield narrate("Traversal complete.");
+yield flow("none");
+```
+````
+
+**Lang tag:** `seq:name` — the name is how `{{play: name}}` references this block.
+
+**Parameters:** `target=block-name` — optional. If set, the parser injects a `data` object built from the named data/diagram block.
+
+**Body:** The body is a JavaScript generator body (everything inside `function*`). The parser wraps it automatically. Use `yield` to emit commands.
+
+### Invocation
+
+```markdown
+{{play: bfs-walk}} Let me show you how BFS explores this graph.
+```
+
+The `{{play: name}}` trigger expands the seq block's output into the narration stream at parse time. After expansion, the result is standard narration text interleaved with `{{verb: target}}` triggers. The existing pipeline handles it from there.
+
+### Available helpers
+
+These are free variables in scope within the generator body:
+
+| Helper | Yields | Example |
+|--------|--------|---------|
+| `narrate(text)` | Narration text (spoken by TTS) | `yield narrate("Visiting A.")` |
+| `pulse(target)` | `{{pulse: target}}` | `yield pulse("A")` |
+| `draw(target)` | `{{draw: target}}` | `yield draw("A-to-B")` |
+| `focus(target)` | `{{focus: target}}` | `yield focus("loop")` |
+| `flow(target)` | `{{flow: target}}` | `yield flow("none")` |
+| `trace(target)` | `{{trace: target}}` | `yield trace("path")` |
+| `pan(target)` | `{{pan: target}}` | `yield pan("far-region")` |
+| `show(target)` | `{{show: target}}` | `yield show("code-v2")` |
+| `hide(target)` | `{{hide: target}}` | `yield hide("old-code")` |
+| `zoom(scale, target?)` | `{{zoom: [target] Nx}}` | `yield zoom(1.3, "loop")` |
+| `annotate(target, text)` | `{{annotate: target "text"}}` | `yield annotate("A", "Start")` |
+| `clear(transition?)` | `{{clear: transition}}` | `yield clear("slide")` |
+
+### The `data` object
+
+When `target=block-name` points to a data or diagram block, the generator receives a `data` parameter with a typed API:
+
+**Graph (`type=graph`):**
+- `data.nodes` — `string[]` of node IDs
+- `data.edges` — `{ from, to, weight }[]`
+- `data.directed` — `boolean`
+- `data.neighbors(id)` — `string[]` of adjacent node IDs
+- `data.value(id)` — node's display value
+
+**Linked list (`type=linked-list`):**
+- `data.nodes` — `string[]` of node IDs
+- `data.head` — first node ID (or `null`)
+- `data.next(id)` — next node ID (or `null`)
+- `data.value(id)` — node's display value
+
+**Binary tree (`type=binary-tree`):**
+- `data.nodes` — `string[]` of node IDs
+- `data.root` — root node ID (or `null`)
+- `data.left(id)` — left child ID (or `null`)
+- `data.right(id)` — right child ID (or `null`)
+- `data.value(id)` — node's display value
+
+**Array (`type=array`):**
+- `data.values` — `string[]`
+- `data.length` — number of elements
+
+**Diagram:**
+- `data.nodes` — `string[]` of node IDs
+- `data.edges` — `{ from, to, label }[]`
+- `data.neighbors(id)` — `string[]` of adjacent node IDs
+
+### Execution model
+
+- Generator runs at **parse time**, not during playback.
+- Output is a static sequence of narration+triggers — zero runtime cost.
+- Max 10,000 yields per generator (safety limit for infinite loops).
+- Errors are caught and rendered as `[seq error: message]` in the narration.

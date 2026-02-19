@@ -3,19 +3,22 @@ import { AnimatePresence, motion } from "motion/react";
 import type { CodeState, RegionDef, SlotEnterEffect, SceneAnnotation } from "@/types/lesson";
 import { useShiki, type ShikiToken } from "./use-shiki";
 import { diffCode } from "./code-diff";
+import { diffTokens } from "./token-diff";
+import type { TokenEntry } from "./token-diff";
 import { CodeLine } from "./CodeLine";
 import { CodeTokens } from "./CodeTokens";
-import { colors, fonts, fontSizes, spacing, radii } from "@/app/theme";
+import { colors, fonts, fontSizes, spacing, radii, spring, fade } from "@/app/theme";
 
 type CodeProps = {
   readonly state: CodeState;
   readonly prevState: CodeState | undefined;
   readonly enterEffect: SlotEnterEffect | undefined;
   readonly focus: string;
+  readonly pan: string;
   readonly annotations: readonly SceneAnnotation[];
 };
 
-export function Code({ state, prevState, enterEffect, focus, annotations }: CodeProps) {
+export function Code({ state, prevState, enterEffect, focus, pan, annotations }: CodeProps) {
   const prevContent = prevState?.content ?? "";
 
   const diff = useMemo(
@@ -24,11 +27,27 @@ export function Code({ state, prevState, enterEffect, focus, annotations }: Code
   );
 
   const { data: tokenLines } = useShiki(state.content, state.lang);
+  const { data: prevTokenLines } = useShiki(prevContent || " ", prevState?.lang ?? state.lang);
+
+  const useTokenMorph = prevState !== undefined && prevState.content !== state.content;
+  const tokenDiff = useMemo(() => {
+    if (!useTokenMorph || !prevTokenLines || !tokenLines) return null;
+    return diffTokens(prevTokenLines, tokenLines);
+  }, [useTokenMorph, prevTokenLines, tokenLines]);
 
   const focusResolved = useMemo(
     () => resolveCodeRegionDetailed(focus, state.regions),
     [focus, state.regions],
   );
+
+  const panResolved = useMemo(
+    () => resolveCodeRegionDetailed(pan, state.regions),
+    [pan, state.regions],
+  );
+  const panLineSet = useMemo(() => {
+    if (panResolved.length === 0) return null;
+    return new Set(panResolved.map((e) => e.line));
+  }, [panResolved]);
 
   const focusSet = useMemo(() => {
     if (state.focus.length === 0 && focusResolved.length === 0) return null;
@@ -85,19 +104,117 @@ export function Code({ state, prevState, enterEffect, focus, annotations }: Code
         tokens,
         lineNumber: diffLine.lineNumber,
         dimmed: focusSet !== null && !focusSet.has(diffLine.lineNumber),
+        panTarget: panLineSet !== null && panLineSet.has(diffLine.lineNumber),
         status: diffLine.status,
         annotation: annotationMap?.get(diffLine.lineNumber) ?? "",
         substringTarget: pointer?.substring ?? focusSub,
         pointerAnnotation: pointer?.text ?? "",
       };
     });
-  }, [diff.lines, tokenLines, focusSet, annotationMap, substringFocusMap, pointerAnnotationMap]);
+  }, [diff.lines, tokenLines, focusSet, panLineSet, annotationMap, substringFocusMap, pointerAnnotationMap]);
 
   // Typewriter: spread the total animation duration evenly across lines
   const staggerDelay =
     enterEffect?.effect === "typewriter" && renderedLines.length > 0
       ? enterEffect.durationS / renderedLines.length
       : 0;
+
+  // Group token diff entries by line for rendering
+  const tokenLineGroups = useMemo(() => {
+    if (!tokenDiff) return null;
+    const groups = new Map<number, TokenEntry[]>();
+    for (const t of tokenDiff.tokens) {
+      if (t.status === "removed") continue;
+      const arr = groups.get(t.line) ?? [];
+      arr.push(t);
+      groups.set(t.line, arr);
+    }
+    // Sort tokens within each line by column
+    for (const arr of groups.values()) {
+      arr.sort((a, b) => a.col - b.col);
+    }
+    return groups;
+  }, [tokenDiff]);
+
+  const removedTokens = useMemo(() => {
+    if (!tokenDiff) return [];
+    return tokenDiff.tokens.filter((t) => t.status === "removed");
+  }, [tokenDiff]);
+
+  if (tokenDiff && tokenLineGroups && enterEffect?.effect !== "typewriter") {
+    const lineCount = tokenLines?.length ?? 0;
+    return (
+      <div style={{ background: "transparent", overflow: "hidden" }}>
+        <div style={{ padding: `${spacing.md} 0`, overflowX: "auto", position: "relative" }}>
+          <AnimatePresence>
+            {removedTokens.map((token) => (
+              <motion.span
+                key={token.key}
+                layoutId={token.key}
+                initial={false}
+                exit={{ opacity: 0 }}
+                transition={{ opacity: fade }}
+                style={{
+                  position: "absolute",
+                  fontFamily: fonts.code,
+                  fontSize: fontSizes.code,
+                  color: token.color,
+                  whiteSpace: "pre",
+                  pointerEvents: "none",
+                }}
+              />
+            ))}
+          </AnimatePresence>
+          {Array.from({ length: lineCount }, (_, lineIdx) => {
+            const lineTokens = tokenLineGroups.get(lineIdx) ?? [];
+            return (
+              <div
+                key={lineIdx}
+                style={{
+                  display: "flex",
+                  alignItems: "baseline",
+                  fontFamily: fonts.code,
+                  fontSize: fontSizes.code,
+                  lineHeight: "1.5",
+                  padding: "2px 0",
+                  whiteSpace: "pre",
+                }}
+              >
+                <span
+                  style={{
+                    display: "inline-block",
+                    width: "3em",
+                    textAlign: "right",
+                    paddingRight: spacing.md,
+                    color: colors.textDim,
+                    userSelect: "none",
+                    flexShrink: 0,
+                  }}
+                >
+                  {lineIdx + 1}
+                </span>
+                <span>
+                  {lineTokens.map((token) => (
+                    <motion.span
+                      key={token.key}
+                      layoutId={token.key}
+                      layout="position"
+                      initial={token.status === "added" ? { opacity: 0 } : false}
+                      animate={{ opacity: 1 }}
+                      transition={{ layout: spring, opacity: fade }}
+                      style={{ color: token.color }}
+                    >
+                      {token.content}
+                    </motion.span>
+                  ))}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ background: "transparent", overflow: "hidden" }}>
@@ -130,6 +247,7 @@ export function Code({ state, prevState, enterEffect, focus, annotations }: Code
                 tokens={line.tokens}
                 lineNumber={line.lineNumber}
                 dimmed={line.dimmed}
+                panTarget={line.panTarget}
                 status={line.status}
                 annotation={line.annotation}
                 substringTarget={line.substringTarget}
@@ -148,6 +266,7 @@ type RenderedLine = {
   readonly tokens: readonly ShikiToken[];
   readonly lineNumber: number;
   readonly dimmed: boolean;
+  readonly panTarget: boolean;
   readonly status: "kept" | "added" | "removed";
   readonly annotation: string;
   readonly substringTarget: string;

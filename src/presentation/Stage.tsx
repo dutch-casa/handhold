@@ -92,7 +92,7 @@ function SlotLayer({
               transition={slotTransition(enter)}
               style={{ flex: isSplit ? "1 1 0%" : "1 1 100%" }}
             >
-              <ZoomSlot zoomScale={zoomScale}>
+              <ViewportSlot zoomScale={zoomScale} pan={scene.pan}>
                 <Slot
                   state={slot}
                   prevState={resolvePrevSlot(slot.name, scene, prevScene)}
@@ -101,9 +101,11 @@ function SlotLayer({
                   flow={scene.flow}
                   pulse={scene.pulse}
                   trace={scene.trace}
+                  draw={scene.draw}
+                  pan={scene.pan}
                   annotations={scene.annotations}
                 />
-              </ZoomSlot>
+              </ViewportSlot>
             </motion.div>
           );
         })}
@@ -113,17 +115,20 @@ function SlotLayer({
 }
 
 // CSS approximation of theme spring (stiffness:120, damping:20, mass:1)
-const ZOOM_TRANSITION = "transform 0.5s cubic-bezier(0.25, 0.1, 0.25, 1)";
+const VIEWPORT_TRANSITION = "transform 0.5s cubic-bezier(0.25, 0.1, 0.25, 1), translate 0.5s cubic-bezier(0.25, 0.1, 0.25, 1)";
 
-function ZoomSlot({
+function ViewportSlot({
   zoomScale,
+  pan,
   children,
 }: {
   readonly zoomScale: number;
+  readonly pan: string;
   readonly children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const prevScale = useRef(1);
+  const prevPan = useRef("");
 
   useLayoutEffect(() => {
     const el = ref.current;
@@ -179,12 +184,54 @@ function ZoomSlot({
     el.style.transformOrigin = `${xPct.toFixed(1)}% ${yPct.toFixed(1)}%`;
   }, [zoomScale]);
 
+  // Compute pan translation from data-pan-target elements
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const panChanged = pan !== prevPan.current;
+    prevPan.current = pan;
+
+    if (pan.length === 0) {
+      el.style.translate = "";
+      return;
+    }
+
+    if (!panChanged) return;
+
+    const targets = el.querySelectorAll<HTMLElement>("[data-pan-target]");
+    if (targets.length === 0) return;
+
+    const containerRect = el.getBoundingClientRect();
+    if (containerRect.width === 0 || containerRect.height === 0) return;
+
+    let sumX = 0;
+    let sumY = 0;
+    let count = 0;
+
+    for (const t of targets) {
+      const rect = t.getBoundingClientRect();
+      sumX += rect.left + rect.width / 2;
+      sumY += rect.top + rect.height / 2;
+      count++;
+    }
+
+    const avgX = sumX / count;
+    const avgY = sumY / count;
+    const containerCenterX = containerRect.left + containerRect.width / 2;
+    const containerCenterY = containerRect.top + containerRect.height / 2;
+    const tx = containerCenterX - avgX;
+    const ty = containerCenterY - avgY;
+
+    el.style.translate = `${tx.toFixed(1)}px ${ty.toFixed(1)}px`;
+  }, [pan]);
+
   return (
     <div
       ref={ref}
       style={{
         transform: `scale(${zoomScale})`,
-        transition: ZOOM_TRANSITION,
+        transition: VIEWPORT_TRANSITION,
       }}
     >
       {children}
@@ -221,6 +268,8 @@ function Slot({
   flow,
   pulse,
   trace,
+  draw,
+  pan,
   annotations,
 }: {
   readonly state: VisualizationState;
@@ -230,6 +279,8 @@ function Slot({
   readonly flow: string;
   readonly pulse: string;
   readonly trace: string;
+  readonly draw: string;
+  readonly pan: string;
   readonly annotations: readonly SceneAnnotation[];
 }) {
   switch (state.kind) {
@@ -240,6 +291,7 @@ function Slot({
           prevState={prevState?.kind === "code" ? prevState : undefined}
           enterEffect={enterEffect}
           focus={focus}
+          pan={pan}
           annotations={annotations}
         />
       );
@@ -252,6 +304,8 @@ function Slot({
           flow={flow}
           pulse={pulse}
           trace={trace}
+          draw={draw}
+          pan={pan}
           annotations={annotations}
         />
       );
@@ -264,6 +318,8 @@ function Slot({
           flow={flow}
           pulse={pulse}
           trace={trace}
+          draw={draw}
+          pan={pan}
           annotations={annotations}
         />
       );

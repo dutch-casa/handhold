@@ -9,6 +9,7 @@ type DiagramNodeProps = {
   readonly node: PositionedDiagramNode;
   readonly dimmed?: boolean | undefined;
   readonly pulsing?: boolean | undefined;
+  readonly panTarget?: boolean | undefined;
   readonly initialX?: number | undefined;
   readonly initialY?: number | undefined;
 };
@@ -21,6 +22,7 @@ export function DiagramNode({
   node,
   dimmed = false,
   pulsing = false,
+  panTarget = false,
   initialX,
   initialY,
 }: DiagramNodeProps) {
@@ -72,6 +74,7 @@ export function DiagramNode({
         scale: pulsing ? { duration: 0.6, ease: "easeOut" } : fade,
       }}
       {...(!dimmed ? { "data-focused": true } : {})}
+      {...(panTarget ? { "data-pan-target": true } : {})}
     >
       {AwsIcon ? (
         <AwsIcon

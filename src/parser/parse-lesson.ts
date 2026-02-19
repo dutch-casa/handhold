@@ -10,6 +10,8 @@ import { parsePreview } from "./parse-preview";
 import { splitContentAndRegions } from "./parse-regions";
 import { buildSceneSequence } from "./build-scenes";
 import { parseAnimationTokens, isAnimationToken } from "./parse-animation";
+import { executeSeq, serializeSeq, buildDataApi } from "./parse-seq";
+import type { SeqBlockDef } from "./parse-seq";
 import type {
   ParsedLesson,
   LessonStep,
@@ -115,23 +117,43 @@ function buildStep(
   nodes: MdastNode[],
   index: number,
 ): { readonly step: LessonStep; readonly diagnostics: readonly LessonDiagnostic[] } {
-  const narration: NarrationBlock[] = [];
   const blocks = new Map<string, VisualizationState>();
+  const seqBlocks = new Map<string, SeqBlockDef>();
+  const paragraphNodes: MdastNode[] = [];
   const kindCounters = new Map<string, number>();
 
+  // Pass 1: collect visualization blocks and seq blocks
   for (const node of nodes) {
     if (node.type === "paragraph") {
-      narration.push(parseNarrationBlock(node));
+      paragraphNodes.push(node);
       continue;
     }
 
-
     if (node.type === "code") {
+      const rawLang = node.lang ?? "";
+      const { blockKind, name: explicitName, params } = parseBlockMeta(rawLang, node.meta ?? "");
+
+      if (blockKind === "seq") {
+        const seqName = explicitName.length > 0 ? explicitName : `seq-${seqBlocks.size}`;
+        seqBlocks.set(seqName, {
+          source: node.value ?? "",
+          targetBlock: params.get("target") ?? "",
+        });
+        continue;
+      }
+
       const vis = parseCodeFence(node, kindCounters);
       if (vis) blocks.set(vis.name, vis);
       continue;
     }
   }
+
+  // Pass 2: parse narration with seq expansion
+  const narration: NarrationBlock[] = paragraphNodes.map((node) => {
+    const rawText = extractText(node);
+    const expanded = expandPlayVerbs(rawText, seqBlocks, blocks);
+    return parseNarrationFromText(expanded);
+  });
 
   const scenes = buildSceneSequence(blocks, narration);
 
@@ -206,6 +228,9 @@ const VERB_KEYWORDS = new Set([
   "annotate",
   "zoom",
   "flow",
+  "pan",
+  "draw",
+  "play",
 ]);
 
 export function parseTriggerAction(text: string): TriggerVerb {
@@ -290,6 +315,12 @@ export function parseTriggerAction(text: string): TriggerVerb {
       }
       case "flow":
         return { verb: "flow", target: args };
+      case "pan":
+        return { verb: "pan", target: args };
+      case "draw":
+        return { verb: "draw", target: args };
+      case "play":
+        return { verb: "play", target: args };
     }
   }
 
@@ -310,8 +341,19 @@ export function parseTriggerAction(text: string): TriggerVerb {
 
 // --- Narration parsing ---
 
-function parseNarrationBlock(node: MdastNode): NarrationBlock {
-  return parseNarrationFromText(extractText(node));
+function expandPlayVerbs(
+  text: string,
+  seqBlocks: ReadonlyMap<string, SeqBlockDef>,
+  blocks: ReadonlyMap<string, VisualizationState>,
+): string {
+  return text.replace(/\{\{play:\s*(.+?)\}\}/g, (match, name: string) => {
+    const seq = seqBlocks.get(name.trim());
+    if (!seq) return match;
+    const targetBlock = seq.targetBlock.length > 0 ? blocks.get(seq.targetBlock) : undefined;
+    const dataApi = targetBlock ? buildDataApi(targetBlock) : {};
+    const commands = executeSeq(seq.source, dataApi);
+    return serializeSeq(commands);
+  });
 }
 
 function parseNarrationFromText(rawText: string): NarrationBlock {
@@ -486,7 +528,9 @@ function validateStep(
         case "annotate":
         case "flow":
         case "pulse":
-        case "trace": {
+        case "trace":
+        case "pan":
+        case "draw": {
           const target = trigger.action.target;
           if (target.length > 0 && target !== "none" && !regionNames.has(target)) {
             diagnostics.push({
@@ -501,6 +545,7 @@ function validateStep(
         case "split":
         case "unsplit":
         case "advance":
+        case "play":
           return;
       }
     });

@@ -8,13 +8,14 @@ type CodeLineProps = {
   readonly tokens: readonly ShikiToken[];
   readonly lineNumber: number;
   readonly dimmed: boolean;
+  readonly panTarget: boolean;
   readonly status: "kept" | "added" | "removed";
   readonly annotation: string;
   readonly substringTarget: string;
   readonly pointerAnnotation: string;
 };
 
-export function CodeLine({ layoutKey, tokens, lineNumber, dimmed, status, annotation, substringTarget, pointerAnnotation }: CodeLineProps) {
+export function CodeLine({ layoutKey, tokens, lineNumber, dimmed, panTarget, status, annotation, substringTarget, pointerAnnotation }: CodeLineProps) {
   return (
     <motion.div
       layoutId={layoutKey}
@@ -24,6 +25,7 @@ export function CodeLine({ layoutKey, tokens, lineNumber, dimmed, status, annota
       exit={{ opacity: 0, x: 8 }}
       transition={{ layout: spring, opacity: fade, x: spring }}
       {...(!dimmed ? { "data-focused": true } : {})}
+      {...(panTarget ? { "data-pan-target": true } : {})}
       style={{
         display: "flex",
         alignItems: "baseline",

@@ -6,6 +6,7 @@ type DiagramEdgeProps = {
   readonly edge: PositionedDiagramEdge;
   readonly flowing?: boolean;
   readonly tracing?: boolean;
+  readonly drawing?: boolean;
 };
 
 const ARROW_SIZE = 8;
@@ -24,13 +25,44 @@ const TRACE_PATH_TRANSITION = {
   strokeWidth: fade,
 };
 
-export function DiagramEdge({ edge, flowing = false, tracing = false }: DiagramEdgeProps) {
+const DRAW_PATH_TRANSITION = {
+  pathLength: { duration: 0.6, ease: [0.22, 1, 0.36, 1] as const },
+  stroke: fade,
+  strokeWidth: fade,
+};
+
+export function DiagramEdge({ edge, flowing = false, tracing = false, drawing = false }: DiagramEdgeProps) {
   const perpX = -edge.endDirY;
   const perpY = edge.endDirX;
   const hw = ARROW_SIZE / 2;
   const baseX = edge.endX - edge.endDirX * ARROW_SIZE;
   const baseY = edge.endY - edge.endDirY * ARROW_SIZE;
   const arrowPts = `${edge.endX},${edge.endY} ${baseX + perpX * hw},${baseY + perpY * hw} ${baseX - perpX * hw},${baseY - perpY * hw}`;
+
+  if (drawing) {
+    return (
+      <motion.g
+        initial={{ opacity: 1 }}
+        animate={{ opacity: 1 }}
+        transition={fade}
+      >
+        <motion.path
+          d={edge.pathData}
+          fill="none"
+          stroke={colors.accent}
+          strokeWidth={2.2}
+          initial={{ pathLength: 0 }}
+          animate={{ pathLength: 1 }}
+          transition={DRAW_PATH_TRANSITION.pathLength}
+        />
+        <motion.polygon
+          initial={{ points: arrowPts, fill: colors.accent, opacity: 0, scale: 0 }}
+          animate={{ points: arrowPts, fill: colors.accent, opacity: 1, scale: 1 }}
+          transition={{ delay: 0.5, ...fade }}
+        />
+      </motion.g>
+    );
+  }
 
   const strokeColor = tracing
     ? colors.accent

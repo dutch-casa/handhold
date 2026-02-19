@@ -1,17 +1,18 @@
 import { useCurrentStepNumber, useTotalSteps, usePresentationStore } from "./store";
 import { useTtsStatus, type TtsStatus } from "./use-tts-status";
+import { ScrubBar } from "./ScrubBar";
+import type { AudioPlayer } from "@/tts/audio-player";
 import { colors, fonts, fontSizes, spacing, radii } from "@/app/theme";
-
-// Play/pause, step navigation, speed, and step progress.
-// Keyboard shortcuts handled at the Presentation level (onKeyDown on focusable container).
 
 type ControlsProps = {
   readonly onNext: () => void;
+  readonly playerRef: React.RefObject<AudioPlayer | null>;
+  readonly onSeek: (ms: number) => void;
 };
 
 const SPEED_OPTIONS = [0.75, 1, 1.25, 1.5, 2] as const;
 
-export function Controls({ onNext }: ControlsProps) {
+export function Controls({ onNext, playerRef, onSeek }: ControlsProps) {
   const togglePlayPause = usePresentationStore((s) => s.togglePlayPause);
   const status = usePresentationStore((s) => s.status);
   const prevStep = usePresentationStore((s) => s.prevStep);
@@ -38,6 +39,8 @@ export function Controls({ onNext }: ControlsProps) {
       <span style={counterStyle}>
         {current} / {total}
       </span>
+
+      <ScrubBar playerRef={playerRef} onSeek={onSeek} />
 
       <div style={rightClusterStyle}>
         <TtsIndicator status={ttsStatus} />
@@ -166,7 +169,6 @@ const speedContainerStyle: React.CSSProperties = {
 };
 
 const rightClusterStyle: React.CSSProperties = {
-  marginLeft: "auto",
   display: "flex",
   alignItems: "center",
   gap: spacing.md,

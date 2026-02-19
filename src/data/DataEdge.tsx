@@ -6,6 +6,7 @@ type DataEdgeProps = {
   readonly edge: PositionedEdge;
   readonly flowing?: boolean;
   readonly tracing?: boolean;
+  readonly drawing?: boolean;
 };
 
 const ARROW_SIZE = 6;
@@ -24,7 +25,13 @@ const TRACE_STROKE_TRANSITION = {
   strokeWidth: fade,
 };
 
-export function DataEdge({ edge, flowing = false, tracing = false }: DataEdgeProps) {
+const DRAW_TRANSITION = {
+  pathLength: { duration: 0.6, ease: [0.22, 1, 0.36, 1] as const },
+  stroke: fade,
+  strokeWidth: fade,
+};
+
+export function DataEdge({ edge, flowing = false, tracing = false, drawing = false }: DataEdgeProps) {
   const dx = edge.x2 - edge.x1;
   const dy = edge.y2 - edge.y1;
   const len = Math.sqrt(dx * dx + dy * dy);
@@ -46,6 +53,33 @@ export function DataEdge({ edge, flowing = false, tracing = false }: DataEdgePro
 
   const midX = (edge.x1 + edge.x2) / 2;
   const midY = (edge.y1 + edge.y2) / 2;
+
+  const edgeLen = Math.sqrt((endX - edge.x1) ** 2 + (endY - edge.y1) ** 2);
+
+  if (drawing) {
+    return (
+      <motion.g
+        initial={{ opacity: 1 }}
+        animate={{ opacity: 1 }}
+        transition={fade}
+      >
+        <motion.line
+          {...lineProps}
+          stroke={colors.accent}
+          strokeWidth={2.2}
+          strokeDasharray={edgeLen}
+          initial={{ strokeDashoffset: edgeLen }}
+          animate={{ strokeDashoffset: 0 }}
+          transition={DRAW_TRANSITION.pathLength}
+        />
+        <motion.polygon
+          initial={{ points: arrowPts, fill: colors.accent, opacity: 0, scale: 0 }}
+          animate={{ points: arrowPts, fill: colors.accent, opacity: 1, scale: 1 }}
+          transition={{ delay: 0.5, ...fade }}
+        />
+      </motion.g>
+    );
+  }
 
   const strokeColor = tracing
     ? colors.accent

@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { usePresentationStore, useCurrentStep } from "./store";
-import { buildTimeline } from "./build-timeline";
+import { buildTimeline, type TimelineEvent } from "./build-timeline";
+import { resolveSceneAt, resolveWordAt } from "./resolve-scene-at";
 import { EventScheduler } from "./event-scheduler";
 import { AudioPlayer } from "@/tts/audio-player";
 import { useTTS } from "@/tts/use-tts";
@@ -14,10 +15,14 @@ import { playSound } from "@/sound/use-sound";
 //   3. Store state changes     → sync player/scheduler (zustand subscribe, not useEffect).
 // Plus background prefetch: while step N plays, synthesize step N+1 via useTTS.
 
-export function usePlayback() {
+export type UsePlaybackResult = {
+  readonly playerRef: React.RefObject<AudioPlayer | null>;
+  readonly seekLocal: (ms: number) => void;
+};
+
+export function usePlayback(): UsePlaybackResult {
   const step = useCurrentStep();
 
-  // --- Player: created once, onEnd wired via getState (always fresh, no stale closure). ---
   const playerRef = useRef<AudioPlayer | null>(null);
   if (!playerRef.current) {
     const player = new AudioPlayer();
@@ -32,6 +37,7 @@ export function usePlayback() {
   }
 
   const schedulerRef = useRef<EventScheduler | null>(null);
+  const timelineRef = useRef<readonly TimelineEvent[]>([]);
 
   const narrationText = step?.narration.map((n) => n.text).join(" ") ?? "";
   const bundlePath = usePresentationStore((s) => s.bundlePath);
@@ -42,8 +48,26 @@ export function usePlayback() {
     return buildTimeline(synthesis, step);
   }, [synthesis, step]);
 
+  timelineRef.current = timeline;
+
+  // Seek within the current step: reposition audio, resolve scene/word, restart scheduler.
+  const seekLocal = useCallback((ms: number) => {
+    const player = playerRef.current;
+    if (!player) return;
+    player.seekMs(ms);
+
+    const tl = timelineRef.current;
+    const { setSceneIndex, setWordIndex } = usePresentationStore.getState();
+    setSceneIndex(resolveSceneAt(ms, tl));
+    setWordIndex(resolveWordAt(ms, tl));
+
+    const scheduler = schedulerRef.current;
+    if (scheduler && usePresentationStore.getState().status === "playing") {
+      scheduler.play(ms);
+    }
+  }, []);
+
   // Bridge 1: Synthesis data → player.load(). Auto-plays if store is already "playing".
-  // Cleanup stops the player when narration changes so old audio doesn't bleed into new steps.
   const loadedTextRef = useRef("");
   useEffect(() => {
     if (!synthesis || loadedTextRef.current === narrationText) return;
@@ -88,7 +112,7 @@ export function usePlayback() {
     return () => scheduler.dispose();
   }, [timeline]);
 
-  // Bridge 3: Store → player/scheduler. Single subscribe replaces multiple useEffects.
+  // Bridge 3: Store → player/scheduler.
   useEffect(() => {
     return usePresentationStore.subscribe((state, prev) => {
       const player = playerRef.current;
@@ -124,12 +148,13 @@ export function usePlayback() {
     });
   }, []);
 
-  // Prefetch: declaratively synthesize next step's TTS while current step plays.
-  // useTTS is a React Query hook — result is cached, so advancing is instant.
+  // Prefetch next step's TTS while current step plays.
   const nextNarrationText = usePresentationStore((s) => {
     const next = s.steps[s.currentStepIndex + 1];
     if (!next) return "";
     return next.narration.map((n) => n.text).join(" ");
   });
   useTTS(nextNarrationText, bundlePath);
+
+  return { playerRef, seekLocal };
 }

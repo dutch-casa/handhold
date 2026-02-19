@@ -23,10 +23,12 @@ type DataProps = {
   readonly flow: string;
   readonly pulse: string;
   readonly trace: string;
+  readonly draw: string;
+  readonly pan: string;
   readonly annotations: readonly SceneAnnotation[];
 };
 
-export function Data({ state, prevState, focus, flow, pulse, trace, annotations }: DataProps) {
+export function Data({ state, prevState, focus, flow, pulse, trace, draw, pan, annotations }: DataProps) {
   const layout = useMemo(() => computeLayout(state), [state]);
   const prevLayout = useMemo(
     () => (prevState ? computeLayout(prevState) : undefined),
@@ -54,6 +56,14 @@ export function Data({ state, prevState, focus, flow, pulse, trace, annotations 
   const tracedEdgeIds = useMemo(
     () => resolveFlowEdges(trace, state),
     [trace, state],
+  );
+  const drawingEdgeIds = useMemo(
+    () => resolveFlowEdges(draw, state),
+    [draw, state],
+  );
+  const panNodeIds = useMemo(
+    () => resolveDataRegion(pan, state),
+    [pan, state],
   );
 
   // Only show the last annotation per node (single annotation constraint)
@@ -84,6 +94,7 @@ export function Data({ state, prevState, focus, flow, pulse, trace, annotations 
           edge={edge}
           flowing={flowingEdgeIds.has(edge.id)}
           tracing={tracedEdgeIds.has(edge.id)}
+          drawing={drawingEdgeIds.has(edge.id)}
         />
       ))}
       {layout.nodes.map((node) => (
@@ -92,6 +103,7 @@ export function Data({ state, prevState, focus, flow, pulse, trace, annotations 
           node={node}
           dimmed={focusedIds.length > 0 && !focusedIds.includes(node.id)}
           pulsing={pulsedIds.includes(node.id)}
+          panTarget={panNodeIds.includes(node.id)}
           initialX={prevNodeMap.get(node.id)?.x}
           initialY={prevNodeMap.get(node.id)?.y}
         />

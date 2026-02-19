@@ -62,7 +62,11 @@ export class AudioPlayer {
     if (this.loaded) this.audio.currentTime = 0;
   }
 
-  /** Current content position in milliseconds. Unaffected by playback rate. */
+  seekMs(ms: number): void {
+    if (!this.loaded) return;
+    this.audio.currentTime = ms / 1000;
+  }
+
   currentTimeMs(): number {
     return this.audio.currentTime * 1000;
   }

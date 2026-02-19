@@ -16,10 +16,12 @@ type DiagramProps = {
   readonly flow: string;
   readonly pulse: string;
   readonly trace: string;
+  readonly draw: string;
+  readonly pan: string;
   readonly annotations: readonly SceneAnnotation[];
 };
 
-export function Diagram({ state, prevState, focus, flow, pulse, trace, annotations }: DiagramProps) {
+export function Diagram({ state, prevState, focus, flow, pulse, trace, draw, pan, annotations }: DiagramProps) {
   const { data: layout } = useQuery<DiagramLayout>({
     queryKey: ["elk-layout", state],
     queryFn: () => layoutDiagramWithElk(state),
@@ -50,6 +52,11 @@ export function Diagram({ state, prevState, focus, flow, pulse, trace, annotatio
     () => resolveFlowEdges(trace, state),
     [trace, state],
   );
+  const drawingEdgeIds = useMemo(
+    () => resolveFlowEdges(draw, state),
+    [draw, state],
+  );
+  const panNodeIds = resolveDiagramRegion(pan, state);
 
   const dedupedAnnotations = useMemo(() => {
     const byTarget = new Map<string, SceneAnnotation>();
@@ -64,12 +71,13 @@ export function Diagram({ state, prevState, focus, flow, pulse, trace, annotatio
     const edgePriority = (edge: DiagramLayout["edges"][number]) => {
       const keyA = `${edge.fromId}->${edge.toId}`;
       const keyB = `${edge.toId}->${edge.fromId}`;
+      if (drawingEdgeIds.has(keyA) || drawingEdgeIds.has(keyB)) return 3;
       if (tracedEdgeIds.has(keyA) || tracedEdgeIds.has(keyB)) return 2;
       if (flowingEdgeIds.has(keyA) || flowingEdgeIds.has(keyB)) return 1;
       return 0;
     };
     return [...edges].sort((a, b) => edgePriority(a) - edgePriority(b));
-  }, [layout?.edges, tracedEdgeIds, flowingEdgeIds]);
+  }, [layout?.edges, drawingEdgeIds, tracedEdgeIds, flowingEdgeIds]);
 
   if (!layout || layout.width === 0) return null;
 
@@ -87,20 +95,26 @@ export function Diagram({ state, prevState, focus, flow, pulse, trace, annotatio
       {layout.groups.map((group) => (
         <DiagramGroupBoundary key={`boundary-${group.name}`} group={group} />
       ))}
-      {orderedEdges.map((edge) => (
-        <DiagramEdge
-          key={edge.id}
-          edge={edge}
-          flowing={flowingEdgeIds.has(`${edge.fromId}->${edge.toId}`) || flowingEdgeIds.has(`${edge.toId}->${edge.fromId}`)}
-          tracing={tracedEdgeIds.has(`${edge.fromId}->${edge.toId}`) || tracedEdgeIds.has(`${edge.toId}->${edge.fromId}`)}
-        />
-      ))}
+      {orderedEdges.map((edge) => {
+        const keyA = `${edge.fromId}->${edge.toId}`;
+        const keyB = `${edge.toId}->${edge.fromId}`;
+        return (
+          <DiagramEdge
+            key={edge.id}
+            edge={edge}
+            flowing={flowingEdgeIds.has(keyA) || flowingEdgeIds.has(keyB)}
+            tracing={tracedEdgeIds.has(keyA) || tracedEdgeIds.has(keyB)}
+            drawing={drawingEdgeIds.has(keyA) || drawingEdgeIds.has(keyB)}
+          />
+        );
+      })}
       {layout.nodes.map((node) => (
         <DiagramNode
           key={node.id}
           node={node}
           dimmed={focusedIds.length > 0 && !focusedIds.includes(node.id)}
           pulsing={pulsedIds.includes(node.id)}
+          panTarget={panNodeIds.includes(node.id)}
           initialX={prevNodeMap.get(node.id)?.x}
           initialY={prevNodeMap.get(node.id)?.y}
         />

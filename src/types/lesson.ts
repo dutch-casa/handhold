@@ -101,6 +101,9 @@ export type TriggerVerb =
       readonly target: string;
     }
   | { readonly verb: "flow"; readonly target: string }
+  | { readonly verb: "pan"; readonly target: string }
+  | { readonly verb: "draw"; readonly target: string }
+  | { readonly verb: "play"; readonly target: string }
   | { readonly verb: "advance" };
 
 export type Trigger = {
@@ -355,6 +358,8 @@ export type SceneState = {
   readonly transformFrom: readonly { readonly to: string; readonly from: string }[];
   readonly annotations: readonly SceneAnnotation[];
   readonly zoom: { readonly scale: number; readonly target: string };
+  readonly pan: string;
+  readonly draw: string;
 };
 
 // --- Step: one H1 section of a lesson ---

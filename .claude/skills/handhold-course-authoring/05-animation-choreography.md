@@ -320,6 +320,122 @@ Before clearing, clean up the scene:
 
 This feels intentional. Resetting zoom and focus → brief pause with full view → clean transition → new content.
 
+## Pan Choreography
+
+Pan translates the viewport to center on a target region. Use it for large visualizations that don't fit on screen.
+
+### Pan + Zoom composition
+
+Pan and zoom are orthogonal. Pan translates, zoom scales. Combine them to navigate and magnify:
+
+```markdown
+{{pan: far-region}} {{zoom: 1.3x}} Now look at this distant cluster.
+```
+
+### Pan reset
+
+Always reset pan before switching context:
+
+```markdown
+{{pan: none}} {{zoom: 1x}} Step back to see the full picture.
+```
+
+### When to pan
+
+- Wide diagrams where nodes extend beyond the viewport
+- Long code blocks where you need to jump between distant sections
+- Graph algorithms that visit nodes across the layout
+
+### When NOT to pan
+
+- Small visualizations that already fit. Pan on a 5-node graph is wasted motion.
+- Between steps. Use `{{clear}}` instead — clean break, not a slow scroll.
+
+## Draw Choreography
+
+Draw animates edges appearing like a pen stroke. One-shot (not looping like flow).
+
+### Building up connections incrementally
+
+```markdown
+{{draw: edge-a-b}} First, connect A to B.
+{{draw: edge-b-c}} Then B to C.
+{{draw: none}} {{flow: full-path}} Now the full path is flowing.
+```
+
+### Draw → Flow transition
+
+Draw reveals an edge, flow animates it continuously. Common pattern: draw edges as the algorithm discovers them, then switch to flow to show the final active path.
+
+### When to draw
+
+- Algorithm edge discovery (BFS/DFS exploring new edges)
+- Building a spanning tree edge by edge
+- Revealing connections incrementally for pedagogical effect
+
+### When NOT to draw
+
+- Edges that should just appear (use `show` with the block)
+- Continuous data flow visualization (use `flow`)
+- Highlighting an existing path (use `trace`)
+
+## Sequence Block Choreography
+
+Seq blocks drive animation with algorithms. The generator yields narration and triggers that play in order.
+
+### Narration pacing
+
+Each `yield narrate(...)` creates a segment of TTS speech. Triggers between narrations fire at the word boundary. Keep narration segments short (1-2 sentences) so triggers fire frequently:
+
+```javascript
+// Good: frequent narration with interleaved triggers
+yield narrate(`Visiting ${node}.`);
+yield pulse(node);
+yield narrate(`Checking neighbors.`);
+
+// Bad: long narration with triggers only at the end
+yield narrate(`Now we visit ${node} and check all of its neighbors to see which ones we haven't visited yet.`);
+yield pulse(node);
+```
+
+### Data structure traversal pattern
+
+```javascript
+// BFS template
+const queue = [data.nodes[0]];
+const visited = new Set();
+
+while (queue.length > 0) {
+  const node = queue.shift();
+  if (visited.has(node)) continue;
+  visited.add(node);
+
+  yield narrate(`Visiting ${node}.`);
+  yield pulse(node);
+
+  for (const neighbor of data.neighbors(node)) {
+    if (!visited.has(neighbor)) {
+      yield draw(`${node}-to-${neighbor}`);
+      queue.push(neighbor);
+    }
+  }
+}
+```
+
+### Combining seq with manual triggers
+
+`{{play: name}}` can appear anywhere in narration alongside manual triggers:
+
+```markdown
+{{show: my-graph grow 0.5s spring}} Here's our graph.
+
+{{play: bfs-walk}} Watch BFS in action.
+
+{{focus: none}} {{zoom: 1x}} That's the complete traversal.
+```
+
+The seq output expands inline. Manual triggers before and after provide context and cleanup.
+
 ## The Storyboard Test
 
 Before writing narration, sketch the sequence of screens your step will produce.

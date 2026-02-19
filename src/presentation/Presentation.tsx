@@ -71,7 +71,7 @@ export function Presentation({
     isInitialLoad.current = false;
   }, [lesson, initialSlideIndex, completedSlideIds, bundlePath]);
 
-  usePlayback();
+  const { playerRef, seekLocal } = usePlayback();
 
   // Auto-focus so keyboard events work immediately.
   useEffect(() => { containerRef.current?.focus(); }, []);
@@ -159,7 +159,11 @@ export function Presentation({
           </ScaledContent>
         </div>
         <NarrationText />
-        <Controls onNext={handleNext} />
+        <Controls
+          onNext={handleNext}
+          playerRef={playerRef}
+          onSeek={seekLocal}
+        />
       </main>
     </div>
   );
