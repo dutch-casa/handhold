@@ -4,6 +4,7 @@ import { initVimMode } from "monaco-vim";
 import "@/lab/monaco-workers";
 import { useSettingsStore } from "@/lab/settings-store";
 import { useEditorCursorStore } from "@/lab/editor-cursor-store";
+import { useVimStatusStore } from "@/lab/vim-status-store";
 import { langFromExt } from "@/lab/monaco-lang";
 import { getOrCreateModel } from "@/lab/monaco-models";
 import type { LineChange } from "@/lab/tauri/git";
@@ -126,6 +127,14 @@ if (!document.getElementById(GUTTER_STYLE_ID)) {
     .git-gutter-added { border-left: 3px solid #7ee787 !important; }
     .git-gutter-modified { border-left: 3px solid #ffa657 !important; }
     .git-gutter-deleted { border-left: 3px solid #f87171 !important; }
+    .vim-status-bar input {
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      border: none;
+      outline: none;
+      width: 100%;
+    }
   `;
   document.head.appendChild(style);
 }
@@ -159,8 +168,10 @@ export function Editor({
   tabSize = 2,
 }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const vimBarRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const vimRef = useRef<{ dispose: () => void } | null>(null);
+  const vimObserverRef = useRef<MutationObserver | null>(null);
   const decorationsRef = useRef<monaco.editor.IEditorDecorationsCollection | null>(null);
 
   const { vimMode, ligatures, wordWrap, lineNumbers: lineNumbersMode, bracketColors, minimap, stickyScroll } =
@@ -282,17 +293,29 @@ export function Editor({
       useEditorCursorStore.getState().setCursor(e.position.lineNumber, e.position.column);
     });
 
-    // Vim mode
-    if (vimMode) {
-      vimRef.current = initVimMode(editor, null);
+    // Vim mode — pass the real mounted status bar node so `/`, `:`, `?` inputs are visible
+    if (vimMode && vimBarRef.current) {
+      vimRef.current = initVimMode(editor, vimBarRef.current);
+
+      const observer = new MutationObserver(() => {
+        const text = vimBarRef.current?.textContent?.trim() ?? "";
+        useVimStatusStore.getState().setMode(text);
+      });
+      observer.observe(vimBarRef.current, { childList: true, characterData: true, subtree: true });
+      vimObserverRef.current = observer;
+
+      useVimStatusStore.getState().setMode(vimBarRef.current.textContent?.trim() ?? "");
     }
 
     return () => {
       openerDisposable.dispose();
       cursorDisposable.dispose();
       disposable.dispose();
+      vimObserverRef.current?.disconnect();
+      vimObserverRef.current = null;
       vimRef.current?.dispose();
       vimRef.current = null;
+      useVimStatusStore.getState().clear();
       decorationsRef.current = null;
       editor.dispose();
       editorRef.current = null;
@@ -323,9 +346,14 @@ export function Editor({
   }, [gitChanges]);
 
   return (
-    <div
-      ref={containerRef}
-      className="h-full w-full overflow-hidden"
-    />
+    <div className="flex h-full w-full flex-col overflow-hidden">
+      <div ref={containerRef} className="flex-1 overflow-hidden" />
+      {vimMode ? (
+        <div
+          ref={vimBarRef}
+          className="vim-status-bar flex h-6 shrink-0 items-center border-t border-border bg-background px-3 font-mono text-xs text-foreground"
+        />
+      ) : null}
+    </div>
   );
 }

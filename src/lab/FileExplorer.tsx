@@ -149,7 +149,7 @@ export function FileExplorer({
     >
       <ContextMenu>
         <ContextMenuTrigger
-          className="flex flex-1 flex-col overflow-y-auto"
+          className="flex min-h-full flex-1 flex-col overflow-y-auto"
           onContextMenu={(e) => {
             // Only fire on empty space — node context menus stopPropagation
             const target = e.target as HTMLElement;

@@ -2,6 +2,7 @@ import { ChevronLeft, ChevronRight, CircleAlert, TriangleAlert } from "lucide-re
 import { useEditorCursorStore } from "@/lab/editor-cursor-store";
 import { useSettingsStore } from "@/lab/settings-store";
 import { useDiagnosticsStore } from "@/lab/diagnostics-store";
+import { useVimStatusStore } from "@/lab/vim-status-store";
 import type { LabStatusSlice } from "@/lab/use-lab";
 import type { CourseNav } from "@/course/use-course";
 
@@ -64,6 +65,8 @@ export function StatusBar({ status, nav, activePath }: StatusBarProps) {
 
   const { line, col } = useEditorCursorStore();
   const tabSize = useSettingsStore((s) => s.editor.tabSize);
+  const vimMode = useSettingsStore((s) => s.editor.vimMode);
+  const vimStatus = useVimStatusStore((s) => s.mode);
   const errorCount = useDiagnosticsStore((s) => s.errorCount);
   const warningCount = useDiagnosticsStore((s) => s.warningCount);
 
@@ -114,6 +117,11 @@ export function StatusBar({ status, nav, activePath }: StatusBarProps) {
                 {warningCount}
               </span>
             ) : null}
+          </span>
+        ) : null}
+        {vimMode && vimStatus !== "" ? (
+          <span className="rounded bg-primary/15 px-1.5 py-0.5 font-mono text-primary">
+            {vimStatus}
           </span>
         ) : null}
         {activePath !== undefined ? (
