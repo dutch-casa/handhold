@@ -8,6 +8,7 @@ export function parseLab(title: string, data: LabData): ParsedLab {
     title,
     instructions: data.instructions,
     filesPath: data.labDirPath,
+    solutionPath: data.hasSolution ? data.solutionPath : undefined,
     workspace: data.config.workspace === "continue" ? "continue" : "fresh",
     testCommand: data.config.test,
     openFiles: data.config.open,

@@ -107,6 +107,9 @@ function SortableTab({
       >
         <Icon className="size-3.5 shrink-0" style={{ color: tab.iconColor }} />
         <span>{tab.name}</span>
+        {tab.solution ? (
+          <span className="ml-0.5 rounded bg-primary/20 px-1 text-[9px] font-medium leading-none text-primary">SOLUTION</span>
+        ) : null}
         {tab.dirty ? (
           <span className="size-1.5 shrink-0 rounded-full bg-primary" />
         ) : null}

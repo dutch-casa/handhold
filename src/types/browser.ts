@@ -1,7 +1,7 @@
 /** Mirrors Rust CourseRecord — the shape returned from all course queries. */
 export type CourseRecord = {
   readonly id: string;
-  readonly githubUrl: string;
+  readonly sourceUrl: string;
   readonly localPath: string;
   readonly title: string;
   readonly description: string;
@@ -19,7 +19,7 @@ export type ImportResult =
   | { readonly kind: "noManifest" }
   | { readonly kind: "badManifest"; readonly reason: string }
   | { readonly kind: "alreadyExists" }
-  | { readonly kind: "cloneFailed"; readonly reason: string };
+  | { readonly kind: "downloadFailed"; readonly reason: string };
 
 /** App-level navigation state persisted to SQLite. */
 export type Route =
@@ -62,6 +62,8 @@ export type LabData = {
   readonly instructions: string;
   readonly hasScaffold: boolean;
   readonly scaffoldPath: string;
+  readonly hasSolution: boolean;
+  readonly solutionPath: string;
   readonly labDirPath: string;
   readonly workspacePath: string;
   readonly config: RawLabConfig;

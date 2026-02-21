@@ -8,7 +8,14 @@ description: >
   debugging presentation issues, or reviewing course content. Triggers on: handhold,
   course, lesson, authoring, presentation, narration, animation, choreography,
   triggers, DSL, visualization, TTS, teaching, lecture, step, scene, focus, zoom,
-  annotate, split, typewriter, preview, code block, data structure, diagram.
+  annotate, split, typewriter, preview, code block, data structure, diagram,
+  tree, binary tree, BST, AVL, red-black, heap, splay, treap, segment tree,
+  interval tree, fenwick, merkle, k-d tree, rope, stack, queue, deque,
+  ring buffer, linked list, doubly linked list, skip list, hash map, hash set,
+  bloom filter, cuckoo filter, count-min sketch, hyperloglog, b-tree, b-plus tree,
+  trie, radix tree, suffix tree, bit array, matrix, adjacency matrix, sparse table,
+  graph, DAG, union-find, disjoint set, LSM tree, fibonacci heap, LRU cache,
+  transform, flow, pulse, trace, draw, pan, seq block, algorithm animation.
 ---
 
 # Handhold Course Authoring

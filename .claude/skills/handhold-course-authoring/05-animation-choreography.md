@@ -436,6 +436,217 @@ while (queue.length > 0) {
 
 The seq output expands inline. Manual triggers before and after provide context and cleanup.
 
+## Data Structure Transform Choreography
+
+Transform morphs one data block into another. Nodes with the same ID slide smoothly from old to new positions via spring interpolation. Edges interpolate endpoints. New nodes fade in; removed nodes fade out.
+
+### The Transform Pattern
+
+Every algorithmic operation follows a three-beat rhythm:
+
+```
+1. Setup    — focus the region about to change
+2. Trigger  — {{transform: v0->v1}} fires the structural change
+3. Resolve  — narrate what just happened while the animation plays
+```
+
+### Tree Operations
+
+**Insert into BST:**
+```markdown
+{{focus: leaf-parent}} We compare with six. {{transform: tree-v0->tree-v1}} Four goes left. The new node slides in from its parent's position.
+```
+
+**Rotation (AVL/Red-Black):**
+```markdown
+{{annotate: unbalanced "bf=2"}} This node is unbalanced.
+{{transform: avl-v0->avl-v1}} A right rotation fixes it. Watch the nodes slide to their new positions.
+```
+
+Rotations are the most visually dramatic transform — three nodes rearrange simultaneously. Keep narration short so the viewer watches the movement.
+
+**Red-Black recoloring:**
+```markdown
+{{transform: rbt-v0->rbt-v1}} The uncle is red, so we recolor. Parent and uncle turn black, grandparent turns red.
+```
+
+The `marker` property animates stroke color (red dot ↔ black dot). No explicit color trigger needed — the transform handles it.
+
+**Heap sift-up/sift-down:**
+```markdown
+{{pulse: swap-pair}} Compare parent and child.
+{{transform: heap-v0->heap-v1}} Swap. The smaller value bubbles up.
+```
+
+Value crossfade shows old value fading out and new value fading in on both nodes.
+
+### Linear Structure Operations
+
+**Stack push/pop:**
+```markdown
+{{transform: stack-v0->stack-v1}} Push. The new element appears on top.
+```
+
+New node enters from above; existing nodes stay put. Top pointer slides up.
+
+**Queue enqueue/dequeue:**
+```markdown
+{{transform: q-v0->q-v1}} Enqueue at the rear. The rear pointer advances.
+```
+
+**Ring buffer wraparound:**
+```markdown
+{{transform: ring-v0->ring-v1}} The tail wraps around past zero. Watch the pointer jump.
+```
+
+Ring buffer pointer animation follows the circular arc, not a straight line.
+
+### Linked List Operations
+
+**Insert at position:**
+```markdown
+{{focus: insert-point}} Here's where the new node goes.
+{{draw: new-edge}} The edge connects.
+{{transform: ll-v0->ll-v1}} The chain reconfigures.
+```
+
+Draw reveals the new edge before the transform, creating a two-beat "connect then settle" rhythm.
+
+**Delete node:**
+```markdown
+{{focus: target}} This node must go.
+{{transform: ll-v0->ll-v1}} The surrounding nodes reconnect, and the target fades out.
+```
+
+AnimatePresence handles the exit animation — the deleted node shrinks and fades.
+
+### Hash Map Operations
+
+**Insert with hash computation:**
+```markdown
+{{annotate: input "h(key)=3"}} Hash of the key lands in bucket three.
+{{focus: bucket-3}} That's this bucket.
+{{transform: hm-v0->hm-v1}} The new entry appends to the chain.
+```
+
+### B-Tree Operations
+
+**Split:**
+```markdown
+{{annotate: full-node "Overflow"}} This node is full.
+{{transform: btree-v0->btree-v1}} The middle key promotes to the parent, and the node splits in two.
+```
+
+Split is visually rich: one wide node becomes two narrower ones, a key rises to the parent, and new edges appear. Let the animation breathe — pause narration for 1-2 seconds.
+
+### Trie Operations
+
+**Insert word character by character:**
+```markdown
+{{focus: root}} Start at root.
+{{draw: edge-r-c}} Add 'c'.
+{{transform: trie-v0->trie-v1}} New node appears.
+{{draw: edge-c-a}} Then 'a'.
+{{transform: trie-v1->trie-v2}} And mark it terminal.
+```
+
+Character-by-character builds are the trie's signature choreography. Each draw + transform pair is one character.
+
+### Union-Find Operations
+
+**Path compression:**
+```markdown
+{{flow: find-path}} Follow the parent pointers to the root.
+{{transform: uf-v0->uf-v1}} Path compression: every node now points directly to the root.
+```
+
+The forest view shows edges flattening from a deep chain to a star topology.
+
+### Bloom Filter / Bit Array Operations
+
+**Insert (set bits):**
+```markdown
+{{pulse: h1-bits}} Hash function one targets these positions.
+{{transform: bf-v0->bf-v1}} Bits flip to one.
+{{pulse: h2-bits}} Hash function two targets these.
+{{transform: bf-v1->bf-v2}} Set.
+```
+
+### Fibonacci Heap Operations
+
+**Extract-min with consolidation:**
+```markdown
+{{pulse: min-node}} Extract the minimum.
+{{transform: fh-v0->fh-v1}} Its children become roots.
+{{transform: fh-v1->fh-v2}} Consolidate: merge trees of the same degree.
+```
+
+Multi-step transforms show one phase at a time. Each transform is one visual beat.
+
+### Seq Block Choreography for Data Structures
+
+Seq blocks automate multi-step operations. Each data type provides a traversal API.
+
+**Tree traversal (inorder):**
+```javascript
+for (const id of data.inorder()) {
+  yield narrate(`Visit ${data.value(id)}.`);
+  yield pulse(id);
+}
+```
+
+**Graph BFS with edge discovery:**
+```javascript
+const queue = [data.nodes[0]];
+const visited = new Set();
+while (queue.length > 0) {
+  const node = queue.shift();
+  if (visited.has(node)) continue;
+  visited.add(node);
+  yield narrate(`Visit ${node}.`);
+  yield pulse(node);
+  for (const neighbor of data.neighbors(node)) {
+    if (!visited.has(neighbor)) {
+      yield draw(`${node}->${neighbor}`);
+      queue.push(neighbor);
+    }
+  }
+}
+```
+
+**B-Tree search:**
+```javascript
+const { path, found } = data.search("15");
+for (const nodeId of path) {
+  yield narrate(`Check node ${nodeId}.`);
+  yield focus(nodeId);
+}
+if (found) {
+  yield narrate("Found it.");
+  yield pulse(path[path.length - 1]);
+}
+```
+
+**Union-Find with path compression visualization:**
+```javascript
+const root = data.find("E");
+yield narrate(`Find the root of E: it's ${root}.`);
+yield flow("find-path");
+yield narrate("Now compress the path.");
+// transform to compressed state happens via manual trigger
+```
+
+### Transform Timing
+
+| Operation | Recommended pause | Why |
+|-----------|------------------|-----|
+| Single node insert/delete | 0s (narrate immediately) | Simple, viewer grasps instantly |
+| Rotation | 1-2s pause | Three nodes moving simultaneously |
+| Split (B-tree) | 1-2s pause | Complex structural change |
+| Consolidation step | 0.5-1s | Repetitive, keep pace up |
+| Path compression | 1s | Multiple edges changing at once |
+| Recoloring | 0s | Subtle, narrate over it |
+
 ## The Storyboard Test
 
 Before writing narration, sketch the sequence of screens your step will produce.

@@ -16,7 +16,7 @@ export type EditorSettings = {
   readonly autoSaveDelay: number;
 };
 
-export type SidebarPanel = "explorer" | "instructions" | "search" | "services" | "testing" | "settings";
+export type SidebarPanel = "explorer" | "instructions" | "search" | "services" | "testing" | "settings" | "solution";
 
 export type AppSettings = {
   readonly editor: EditorSettings;

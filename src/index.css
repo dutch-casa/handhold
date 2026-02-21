@@ -410,3 +410,23 @@
         inset: -8px;
     }
 }
+
+/* ── Instructions panel markdown ───────────────────────────────── */
+
+.instructions-prose {
+    font-size: var(--text-xs);
+    line-height: var(--leading-relaxed);
+    color: var(--foreground);
+}
+
+.instructions-code-block {
+    margin: var(--sp-2) 0;
+    padding: var(--sp-3);
+    border-radius: var(--radius);
+    background: #161616;
+    border: var(--hairline) solid var(--border);
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    line-height: 1.5;
+}

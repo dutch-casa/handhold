@@ -129,6 +129,7 @@ type EditorPaneProps = {
   readonly contentLoading: boolean;
   readonly breadcrumbs: readonly string[];
   readonly gitChanges: readonly LineChange[];
+  readonly readOnly: boolean;
   readonly tree: readonly FileTreeNode[];
   readonly rootPath: string;
   readonly fontSize: number;
@@ -148,6 +149,7 @@ function EditorPane({
   contentLoading,
   breadcrumbs,
   gitChanges,
+  readOnly,
   tree,
   rootPath,
   fontSize,
@@ -182,6 +184,7 @@ function EditorPane({
             content={content}
             ext={extFromPath(activePath)}
             gitChanges={gitChanges}
+            readOnly={readOnly}
             onSave={(text) => onSave(activePath, text)}
             onChange={(text) => onChange(activePath, text)}
             onOpenFile={onOpenFile}
@@ -221,6 +224,8 @@ function SplitResizeHandle() {
 
 export function EditorArea({ editor, requestClose, tree, rootPath }: EditorAreaProps) {
   const isSplit = editor.rightActivePath !== undefined;
+  const leftReadOnly = editor.activePath !== undefined && editor.solutionOpenPaths.has(editor.activePath);
+  const rightReadOnly = editor.rightActivePath !== undefined && editor.solutionOpenPaths.has(editor.rightActivePath);
 
   const paneProps = {
     tree,
@@ -257,6 +262,7 @@ export function EditorArea({ editor, requestClose, tree, rootPath }: EditorAreaP
                 contentLoading={editor.contentLoading}
                 breadcrumbs={editor.breadcrumbs}
                 gitChanges={editor.gitChanges}
+                readOnly={leftReadOnly}
                 isFocused={editor.focusedPane === "left"}
                 onFocus={() => editor.setFocusedPane("left")}
                 {...paneProps}
@@ -270,6 +276,7 @@ export function EditorArea({ editor, requestClose, tree, rootPath }: EditorAreaP
                 contentLoading={editor.rightContentLoading}
                 breadcrumbs={editor.rightBreadcrumbs}
                 gitChanges={editor.rightGitChanges}
+                readOnly={rightReadOnly}
                 isFocused={editor.focusedPane === "right"}
                 onFocus={() => editor.setFocusedPane("right")}
                 {...paneProps}
@@ -283,6 +290,7 @@ export function EditorArea({ editor, requestClose, tree, rootPath }: EditorAreaP
             contentLoading={editor.contentLoading}
             breadcrumbs={editor.breadcrumbs}
             gitChanges={editor.gitChanges}
+            readOnly={leftReadOnly}
             isFocused
             onFocus={() => {}}
             {...paneProps}

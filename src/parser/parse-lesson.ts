@@ -594,7 +594,7 @@ function parseCodeFence(
       ? (layoutParam as GraphLayoutKind)
       : "ring";
     const name = autoName("data", explicitName, kindCounters);
-    return parseData(value, dataType, name, layout);
+    return parseData(value, dataType, name, layout, params);
   }
 
   // diagram

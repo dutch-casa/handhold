@@ -40,6 +40,7 @@ export type EditorTabView = {
   readonly dirty: boolean;
   readonly active: boolean;
   readonly pane: "left" | "right" | undefined;
+  readonly solution: boolean;
 };
 
 export type TerminalTabView = {
@@ -66,6 +67,7 @@ export type LabEditorSlice = {
   readonly contentLoading: boolean;
   readonly breadcrumbs: readonly string[];
   readonly gitChanges: readonly LineChange[];
+  readonly solutionOpenPaths: ReadonlySet<string>;
   readonly rightActivePath: string | undefined;
   readonly rightContent: string | undefined;
   readonly rightContentLoading: boolean;
@@ -113,6 +115,12 @@ export type LabTestSlice = {
   readonly run: () => Promise<void>;
 };
 
+export type LabSolutionSlice = {
+  readonly available: boolean;
+  readonly solutionPath: string | undefined;
+  readonly openSolution: (filePath: string) => void;
+};
+
 export type LabUiSlice = {
   readonly closeConfirm: CloseConfirmState;
   readonly paletteOpen: boolean;
@@ -136,6 +144,7 @@ export type Lab = {
   readonly test: LabTestSlice;
   readonly services: ServicePanelProps;
   readonly status: LabStatusSlice;
+  readonly solution: LabSolutionSlice;
   readonly instructions: string;
   readonly ui: LabUiSlice;
 };
@@ -312,7 +321,7 @@ export function useLab(manifest: ParsedLab, workspacePath: string): Lab {
   // --- Pre-computed view data ---
 
   const editorTabs: readonly EditorTabView[] = useMemo(() => {
-    const { openPaths, activePath, rightActivePath, dirtyPaths } = state;
+    const { openPaths, activePath, rightActivePath, dirtyPaths, solutionOpenPaths } = state;
     return openPaths.map((path) => {
       const name = nameFromPath(path);
       const ext = extFromName(name);
@@ -329,9 +338,10 @@ export function useLab(manifest: ParsedLab, workspacePath: string): Lab {
         dirty: dirtyPaths.has(path),
         active: path === activePath || path === rightActivePath,
         pane,
+        solution: solutionOpenPaths.has(path),
       };
     });
-  }, [state.openPaths, state.activePath, state.rightActivePath, state.dirtyPaths]);
+  }, [state.openPaths, state.activePath, state.rightActivePath, state.dirtyPaths, state.solutionOpenPaths]);
 
   const breadcrumbs = useMemo(
     () => breadcrumbsFromPath(state.activePath, workspacePath),
@@ -409,6 +419,10 @@ export function useLab(manifest: ParsedLab, workspacePath: string): Lab {
     state.cancelClose();
   }, [state.closeConfirm, state.activePath, content, rightContent, saveToDisk, state.markClean, state.closeFile, state.cancelClose]);
 
+  const openSolution = useCallback((filePath: string) => {
+    state.openSolutionFile(filePath, "");
+  }, [state.openSolutionFile]);
+
   return {
     files: {
       tree,
@@ -425,6 +439,7 @@ export function useLab(manifest: ParsedLab, workspacePath: string): Lab {
       contentLoading,
       breadcrumbs,
       gitChanges,
+      solutionOpenPaths: state.solutionOpenPaths,
       rightActivePath: state.rightActivePath,
       rightContent,
       rightContentLoading,
@@ -477,6 +492,11 @@ export function useLab(manifest: ParsedLab, workspacePath: string): Lab {
     status: {
       title: manifest.title,
       lifecycle,
+    },
+    solution: {
+      available: manifest.solutionPath !== undefined,
+      solutionPath: manifest.solutionPath,
+      openSolution,
     },
     instructions: manifest.instructions,
     ui: {

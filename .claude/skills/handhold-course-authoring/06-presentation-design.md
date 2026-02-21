@@ -220,6 +220,24 @@ Groups visually cluster nodes, making the architecture scannable.
 
 ## Data Structure Design
 
+### General Sizing Rules
+
+| Structure type | Sweet spot | Upper limit | Notes |
+|---------------|-----------|-------------|-------|
+| Array / Stack / Queue | 4-8 elements | 16 | Beyond 16, cells become illegible at 1x |
+| Linked list | 3-6 nodes | 10 | Chain gets wide fast |
+| Tree | 7-15 nodes | 31 (5 levels) | Deeper than 5 levels needs pan/zoom |
+| B-tree | 3-7 nodes | 12 | Wide nodes eat horizontal space |
+| Trie | 8-15 nodes | 25 | Radix tree with compressed edges stays compact |
+| Hash map | 4-8 buckets | 12 | Chains of 2-3 per bucket maximum |
+| Graph | 4-8 nodes | 12 | Force layout degrades beyond 12 |
+| Bit array | 8-16 cells | 32 | Smaller cells than arrays, but still limited |
+| Matrix | 3×3 to 5×5 | 8×8 | Cell text must remain readable |
+| Skip list | 4-6 base nodes, 2-4 levels | 8 nodes, 5 levels | Height is the visual feature |
+| Ring buffer | 6-8 slots | 12 | Circle gets cramped with more |
+| Union-find | 4-8 elements | 12 | Forest below gets wide |
+| Fibonacci heap | 2-4 trees, 3-5 nodes each | 20 total nodes | Root chain stretches horizontally |
+
 ### Arrays
 
 Keep arrays short (4-8 elements) unless the length IS the point. Use pointers to mark positions:
@@ -229,7 +247,38 @@ Keep arrays short (4-8 elements) unless the length IS the point. Use pointers to
 ^check=0
 ```
 
-### Linked lists
+### Stacks
+
+Vertical layout — bottom is index 0, top is the last element. The `topIndex` pointer sits on the left:
+
+```
+[main, foo, bar, baz]
+^top=3
+```
+
+Use stacks for: call stacks, undo history, expression evaluation, DFS fringe.
+
+### Queues and Deques
+
+Horizontal with front/rear pointers. Show enough empty slots to demonstrate wrap-around behavior:
+
+```
+[_, _, "C", "D", "E", _, _]
+^front=2 ^rear=4
+```
+
+Deque: same layout, but narration should reference both ends.
+
+### Ring Buffers
+
+Circular layout. The head→tail arc is the active region. Empty slots are visually distinct (dimmed). Keep to 6-8 slots — the circle gets cramped with more.
+
+```
+[10, 20, 30, _, _, _, _, 80]
+^head=0 ^tail=2
+```
+
+### Linked Lists
 
 Show the chain with clear directionality. Use `null` for terminus:
 
@@ -238,6 +287,156 @@ Show the chain with clear directionality. Use `null` for terminus:
 ```
 
 Floating groups (separated by blank lines) show disconnected nodes.
+
+### Doubly Linked Lists
+
+Same as linked list with `<->` for bidirectional edges. Typically show head and tail pointers:
+
+```
+(a 10) <-> (b 20) <-> (c 30) -> null
+^head: a  ^tail: c
+```
+
+### Skip Lists
+
+Levels stack vertically. Same-id nodes align across levels with dashed vertical connections. Keep the bottom level short (4-6 nodes) and 2-4 levels total:
+
+```
+L2: (H) -> (6) -> (nil)
+L1: (H) -> (3) -> (6) -> (nil)
+L0: (H) -> (1) -> (3) -> (4) -> (6) -> (nil)
+```
+
+### Trees
+
+The n-ary tree layout handles any branching factor. Use indentation format for general trees and array format for heaps:
+
+**Indentation (n-ary):**
+```
+(nav)
+  (a:Home)
+  (a:About)
+  (a:Contact)
+```
+
+**Array (binary heap):**
+```
+[1, 3, 5, 7, 9, 8, 6]
+```
+
+**Annotated (red-black, AVL):**
+```
+(7:B)
+  (3:R)
+    (1:B)
+    (5:B)
+  (10:R)
+```
+
+For red-black trees, annotation after colon determines the color dot. For AVL, use balance factors. For heaps, use `variant=heap-min` or `variant=heap-max`.
+
+Tree depth beyond 5 levels requires zoom choreography. Pan to reach distant subtrees.
+
+### B-Trees
+
+Wide-node trees — each node holds multiple keys. Children positioned between key dividers. Keep order low (3-4) for readability:
+
+```
+(root: 10, 20)
+  (a: 3, 5, 8)
+  (b: 12, 15)
+  (c: 25, 30, 40)
+```
+
+B+ tree variant adds horizontal leaf links. Show this for range query animations.
+
+### Tries
+
+Small circle nodes with single characters. Terminal nodes get a double-border (filled inner circle). Root is empty:
+
+```
+()
+  (c)
+    (a)
+      (t*)
+      (r*)
+  (d)
+    (o)
+      (g*)
+```
+
+`*` marks terminal. Radix tree nodes hold multi-character labels: `(at*)`.
+
+### Hash Maps
+
+Vertical bucket column on the left, horizontal chains extending right. Show bucket indices. Keep chains short (2-3 per bucket) for readability:
+
+```
+0: (alice 555-1234) -> (bob 555-5678)
+1:
+2: (charlie 555-9012)
+3:
+```
+
+Empty buckets are visible but dimmed — they show the sparseness.
+
+### Bit Arrays / Bloom Filters
+
+Row of small square cells. Active bits (1) get accent fill, inactive (0) are empty. Hash function highlights show which bits a given input maps to:
+
+```
+[0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0]
+h1: 1, 4, 10
+h2: 6, 13
+```
+
+Count-min sketch uses multiple rows (matrix-like layout).
+
+### Matrices
+
+2D grid with row/column headers. Keep to 5×5 or smaller for readability. Cell text must be short (1-3 characters):
+
+```
+    A  B  C  D
+A [ 0, 1, 0, 1 ]
+B [ 1, 0, 1, 0 ]
+C [ 0, 1, 0, 1 ]
+D [ 1, 0, 1, 0 ]
+```
+
+### Union-Find
+
+Dual view: parent array on top, forest below. The array and forest show the same information in two representations. Path compression transforms are visually dramatic — deep chains flatten to stars:
+
+```
+elements: [A, B, C, D, E, F]
+parent:   [0, 0, 1, 3, 3, 4]
+rank:     [2, 1, 0, 1, 0, 0]
+```
+
+### LSM Trees
+
+Vertical stack. Memtable at top (small, accent border), levels below with sorted runs. Each level wider than the one above (visual pyramid). Flush and compaction arrows show data movement:
+
+```
+memtable: [5, 12, 3, 8]
+L0: [1, 4, 7] [2, 6, 9]
+L1: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+```
+
+### Fibonacci Heaps
+
+Multiple trees arranged horizontally. Root nodes form a doubly-linked chain (dashed bidirectional edges). Min pointer from above. Keep to 2-4 trees with 3-5 nodes each — the horizontal space fills fast:
+
+```
+tree1: (3) -> (7) -> (18) -> (24)
+tree2: (17) -> (30)
+tree3: (23) -> (26) -> (46)
+min: 3
+marked: 26
+```
+
+Marked nodes get dashed border styling.
 
 ### Graphs
 

@@ -38,14 +38,14 @@ fn migrate(conn: &Connection) -> Result<(), String> {
         "
         CREATE TABLE IF NOT EXISTS course (
             id          TEXT PRIMARY KEY,
-            github_url  TEXT NOT NULL UNIQUE,
+            source_url  TEXT NOT NULL UNIQUE,
             local_path  TEXT NOT NULL,
             title       TEXT NOT NULL,
             description TEXT NOT NULL,
             step_count  INTEGER NOT NULL,
             added_at    INTEGER NOT NULL,
             CHECK (length(id) > 0),
-            CHECK (length(github_url) > 0),
+            CHECK (length(source_url) > 0),
             CHECK (step_count > 0)
         ) STRICT;
 
@@ -99,6 +99,15 @@ fn migrate(conn: &Connection) -> Result<(), String> {
         ",
     )
     .map_err(|e| format!("Migration failed: {e}"))?;
+
+    // Existing installs: rename the column. Fresh installs get the new name from DDL.
+    let needs_rename: bool = conn
+        .prepare("SELECT github_url FROM course LIMIT 0")
+        .is_ok();
+    if needs_rename {
+        conn.execute_batch("ALTER TABLE course RENAME COLUMN github_url TO source_url;")
+            .map_err(|e| format!("Column rename migration failed: {e}"))?;
+    }
 
     // FTS5 — CREATE VIRTUAL TABLE doesn't support IF NOT EXISTS,
     // so check manually

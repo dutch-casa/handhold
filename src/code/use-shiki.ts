@@ -13,7 +13,7 @@ export type ShikiToken = {
 
 let highlighterPromise: Promise<HighlighterCore> | null = null;
 
-function getHighlighter(): Promise<HighlighterCore> {
+export function getHighlighter(): Promise<HighlighterCore> {
   if (!highlighterPromise) {
     highlighterPromise = createHighlighterCore({
       themes: [import("shiki/themes/github-dark-default.mjs")],

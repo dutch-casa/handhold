@@ -85,6 +85,7 @@ pub fn run() {
 
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_deep_link::init())
         .setup(|app| {
             let menu = build_menu(app.handle())?;
             app.set_menu(menu)?;

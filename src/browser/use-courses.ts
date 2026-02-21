@@ -92,7 +92,8 @@ export function useImportCourse() {
 export function useDeleteCourse() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: api.courseDelete,
+    mutationFn: ({ id, deleteWorkspaces }: { id: string; deleteWorkspaces: boolean }) =>
+      api.courseDelete(id, deleteWorkspaces),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEYS.courses });
       qc.invalidateQueries({ queryKey: KEYS.tags });

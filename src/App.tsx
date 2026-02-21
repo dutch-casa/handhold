@@ -2,9 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-query";
 import { HotkeysProvider } from "@tanstack/react-hotkeys";
 import { invoke } from "@tauri-apps/api/core";
+import { onOpenUrl } from "@tauri-apps/plugin-deep-link";
 import { Presentation } from "@/presentation/Presentation";
 import { parseLesson } from "@/parser/parse-lesson";
-import { initSettings } from "@/lab/settings-store";
+import { initSettings, useSettingsStore } from "@/lab/settings-store";
 import { Browser } from "@/browser/Browser";
 import { watchDir, coursesDirPath, courseSync } from "@/browser/tauri";
 import { useRoute } from "@/browser/use-route";
@@ -73,8 +74,35 @@ function useCoursesDirWatcher() {
 
 function AppContent() {
   const { route, navigate } = useRoute();
+  const [pendingImportUrl, setPendingImportUrl] = useState<string | null>(null);
 
   useCoursesDirWatcher();
+
+  useEffect(() => {
+    const promise = onOpenUrl((urls) => {
+      for (const raw of urls) {
+        let parsed: URL;
+        try { parsed = new URL(raw); } catch { continue; }
+
+        if (parsed.hostname === "import") {
+          const url = parsed.searchParams.get("url");
+          if (url) {
+            navigate({ kind: "browser" });
+            setPendingImportUrl(url);
+          }
+        } else if (parsed.hostname === "open") {
+          const parts = parsed.pathname.split("/").filter(Boolean);
+          const courseId = parts[0];
+          if (!courseId) continue;
+          const stepIndex = parts[1] ? parseInt(parts[1], 10) : 0;
+          if (!Number.isNaN(stepIndex)) {
+            navigate({ kind: "course", courseId, stepIndex });
+          }
+        }
+      }
+    });
+    return () => { promise.then((fn) => fn()); };
+  }, [navigate]);
 
   const { isLoading } = useQuery({
     queryKey: ["settings"],
@@ -101,6 +129,8 @@ function AppContent() {
           onOpen={(course: CourseRecord) =>
             navigate({ kind: "course", courseId: course.id, stepIndex: 0 })
           }
+          initialImportUrl={pendingImportUrl ?? undefined}
+          onImportHandled={() => setPendingImportUrl(null)}
         />
       );
     case "course":
@@ -319,10 +349,12 @@ type LabStepProps = {
 function LabStep({ courseId, stepPath, stepTitle }: LabStepProps) {
   const { data, isLoading } = useLabData(courseId, stepPath);
 
-  const manifest = useMemo(
-    () => data ? parseLab(stepTitle, data) : undefined,
-    [stepTitle, data],
-  );
+  const manifest = useMemo(() => {
+    if (!data) return undefined;
+    // Labs open with the instructions panel visible
+    useSettingsStore.getState().setSidebarPanel("instructions");
+    return parseLab(stepTitle, data);
+  }, [stepTitle, data]);
 
   if (isLoading || !manifest || !data) return null;
 

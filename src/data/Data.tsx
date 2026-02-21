@@ -1,16 +1,29 @@
 import { useMemo } from "react";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import type { DataState, SceneAnnotation } from "@/types/lesson";
 import type { Layout } from "./layout-types";
 import { layoutArray } from "./layouts/array-layout";
 import { arrayNodeIds } from "./array-ids";
 import { layoutLinkedList } from "./layouts/linked-list-layout";
-import { layoutBinaryTree } from "./layouts/binary-tree-layout";
+import { layoutNaryTree } from "./layouts/tree-layout";
 import { layoutGraph } from "./layouts/graph-layout";
-import { layoutTree } from "./layouts/graph-tree-layout";
+import { layoutTree as layoutGraphTree } from "./layouts/graph-tree-layout";
 import { layoutGrid } from "./layouts/graph-grid-layout";
 import { layoutBipartite } from "./layouts/graph-bipartite-layout";
 import { layoutForce } from "./layouts/graph-force-layout";
+import { layoutStack } from "./layouts/stack-layout";
+import { layoutQueue } from "./layouts/queue-layout";
+import { layoutRingBuffer } from "./layouts/ring-buffer-layout";
+import { layoutDoublyLinkedList } from "./layouts/doubly-linked-list-layout";
+import { layoutSkipList } from "./layouts/skip-list-layout";
+import { layoutHashMap } from "./layouts/hash-map-layout";
+import { layoutBTree } from "./layouts/b-tree-layout";
+import { layoutTrie } from "./layouts/trie-layout";
+import { layoutBitArray } from "./layouts/bit-array-layout";
+import { layoutMatrix } from "./layouts/matrix-layout";
+import { layoutUnionFind } from "./layouts/union-find-layout";
+import { layoutLsmTree } from "./layouts/lsm-tree-layout";
+import { layoutFibonacciHeap } from "./layouts/fibonacci-heap-layout";
 import { DataNode } from "./DataNode";
 import { DataEdge } from "./DataEdge";
 import { DataPointer } from "./DataPointer";
@@ -37,6 +50,32 @@ export function Data({ state, prevState, focus, flow, pulse, trace, draw, pan, a
 
   const prevNodeMap = new Map(
     (prevLayout?.nodes ?? []).map((n) => [n.id, n]),
+  );
+
+  // Track edges from previous layout for exit animation
+  const currentEdgeIds = useMemo(
+    () => new Set(layout.edges.map((e) => e.id)),
+    [layout.edges],
+  );
+  const exitingEdges = useMemo(
+    () => (prevLayout?.edges ?? []).filter((e) => !currentEdgeIds.has(e.id)),
+    [prevLayout?.edges, currentEdgeIds],
+  );
+
+  // Track nodes from previous layout for exit animation
+  const currentNodeIds = useMemo(
+    () => new Set(layout.nodes.map((n) => n.id)),
+    [layout.nodes],
+  );
+  const exitingNodes = useMemo(
+    () => (prevLayout?.nodes ?? []).filter((n) => !currentNodeIds.has(n.id)),
+    [prevLayout?.nodes, currentNodeIds],
+  );
+
+  // Previous edge positions for spring interpolation
+  const prevEdgeMap = useMemo(
+    () => new Map((prevLayout?.edges ?? []).map((e) => [e.id, e])),
+    [prevLayout?.edges],
   );
 
   const focusedIds = useMemo(
@@ -88,6 +127,12 @@ export function Data({ state, prevState, focus, flow, pulse, trace, draw, pan, a
       height={layout.height}
       style={{ maxWidth: "100%", height: "auto", display: "block" }}
     >
+      <AnimatePresence>
+        {/* Exiting edges: fade out */}
+        {exitingEdges.map((edge) => (
+          <DataEdge key={`exit-${edge.id}`} edge={edge} exiting />
+        ))}
+      </AnimatePresence>
       {layout.edges.map((edge) => (
         <DataEdge
           key={edge.id}
@@ -95,19 +140,31 @@ export function Data({ state, prevState, focus, flow, pulse, trace, draw, pan, a
           flowing={flowingEdgeIds.has(edge.id)}
           tracing={tracedEdgeIds.has(edge.id)}
           drawing={drawingEdgeIds.has(edge.id)}
+          prevEdge={prevEdgeMap.get(edge.id)}
         />
       ))}
-      {layout.nodes.map((node) => (
-        <DataNode
-          key={node.id}
-          node={node}
-          dimmed={focusedIds.length > 0 && !focusedIds.includes(node.id)}
-          pulsing={pulsedIds.includes(node.id)}
-          panTarget={panNodeIds.includes(node.id)}
-          initialX={prevNodeMap.get(node.id)?.x}
-          initialY={prevNodeMap.get(node.id)?.y}
-        />
-      ))}
+      <AnimatePresence>
+        {/* Exiting nodes: fade out at their last position */}
+        {exitingNodes.map((node) => (
+          <DataNode key={`exit-${node.id}`} node={node} exiting />
+        ))}
+      </AnimatePresence>
+      {layout.nodes.map((node) => {
+        const prevNode = prevNodeMap.get(node.id);
+        return (
+          <DataNode
+            key={node.id}
+            node={node}
+            dimmed={focusedIds.length > 0 && !focusedIds.includes(node.id)}
+            pulsing={pulsedIds.includes(node.id)}
+            panTarget={panNodeIds.includes(node.id)}
+            initialX={prevNode?.x}
+            initialY={prevNode?.y}
+            prevValue={prevNode?.value}
+            prevMarker={prevNode?.marker}
+          />
+        );
+      })}
       {layout.pointers.map((pointer) => (
         <DataPointer key={pointer.name} pointer={pointer} />
       ))}
@@ -149,13 +206,37 @@ function computeLayout(state: DataState): Layout {
       return layoutArray(state.data);
     case "linked-list":
       return layoutLinkedList(state.data);
-    case "binary-tree":
-      return layoutBinaryTree(state.data);
+    case "tree":
+      return layoutNaryTree(state.data);
     case "graph":
       return layoutGraphByKind(state.data);
     case "stack":
+      return layoutStack(state.data);
+    case "queue":
+    case "deque":
+      return layoutQueue(state.data);
+    case "ring-buffer":
+      return layoutRingBuffer(state.data);
+    case "doubly-linked-list":
+      return layoutDoublyLinkedList(state.data);
+    case "skip-list":
+      return layoutSkipList(state.data);
     case "hash-map":
-      return { nodes: [], edges: [], pointers: [], width: 0, height: 0 };
+      return layoutHashMap(state.data);
+    case "b-tree":
+      return layoutBTree(state.data);
+    case "trie":
+      return layoutTrie(state.data);
+    case "bit-array":
+      return layoutBitArray(state.data);
+    case "matrix":
+      return layoutMatrix(state.data);
+    case "union-find":
+      return layoutUnionFind(state.data);
+    case "lsm-tree":
+      return layoutLsmTree(state.data);
+    case "fibonacci-heap":
+      return layoutFibonacciHeap(state.data);
   }
 }
 
@@ -164,7 +245,7 @@ function layoutGraphByKind(data: import("@/types/lesson").GraphData): Layout {
     case "ring":
       return layoutGraph(data);
     case "tree":
-      return layoutTree(data);
+      return layoutGraphTree(data);
     case "grid":
       return layoutGrid(data);
     case "bipartite":

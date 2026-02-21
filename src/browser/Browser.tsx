@@ -1,4 +1,4 @@
-import { createContext, use, useState, useDeferredValue } from "react";
+import { createContext, use, useEffect, useState, useDeferredValue } from "react";
 import { useCourses, useCourseTags, useCourseSearch, useCoursesByTag } from "@/browser/use-courses";
 import type { CourseRecord } from "@/types/browser";
 import { CourseCard } from "@/browser/CourseCard";
@@ -25,14 +25,22 @@ export { useBrowser };
 
 type BrowserProps = {
   readonly onOpen: (course: CourseRecord) => void;
+  readonly initialImportUrl?: string | undefined;
+  readonly onImportHandled?: (() => void) | undefined;
 };
 
 const SKELETON_KEYS = ["s1", "s2", "s3", "s4", "s5", "s6"] as const;
 
-export function Browser({ onOpen }: BrowserProps) {
+export function Browser({ onOpen, initialImportUrl, onImportHandled }: BrowserProps) {
   const [search, setSearch] = useState("");
   const [activeTag, setActiveTag] = useState("");
   const [importOpen, setImportOpen] = useState(false);
+
+  useEffect(() => {
+    if (initialImportUrl && initialImportUrl.length > 0) {
+      setImportOpen(true);
+    }
+  }, [initialImportUrl]);
 
   const deferredSearch = useDeferredValue(search);
 
@@ -126,7 +134,14 @@ export function Browser({ onOpen }: BrowserProps) {
           © 2026 Dutch Casadaban
         </footer>
 
-        <ImportDialog open={importOpen} onOpenChange={setImportOpen} />
+        <ImportDialog
+          open={importOpen}
+          onOpenChange={(open) => {
+            setImportOpen(open);
+            if (!open && onImportHandled) onImportHandled();
+          }}
+          initialUrl={initialImportUrl}
+        />
       </div>
     </Ctx>
   );

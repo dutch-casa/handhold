@@ -362,9 +362,11 @@ mixed: 1, 3-5, 8
 
 ### Data blocks
 
-Data structure visualizations: arrays, linked lists, binary trees, graphs.
+Data structure visualizations. 40 types across 12 layout primitives.
 
-**Array:**
+#### Linear structures
+
+**Array** (`type=array`):
 ````
 ```data:names type=array
 ["Alice", "Bob", "Dana", "Eve"]
@@ -374,12 +376,49 @@ first: 0
 found: 2
 ```
 ````
-
 - Values in square brackets, comma-separated
 - Pointers: `^pointer-name=index`
-- Regions target indices: `first: 0` or `group: 0, 1, 2`
+- Regions target indices
 
-**Linked list:**
+**Stack** (`type=stack`):
+````
+```data:call-stack type=stack
+[main, foo, bar, baz]
+^top=3
+```
+````
+- Vertical column, bottom = index 0. `^top=N` pointer.
+
+**Queue** (`type=queue`):
+````
+```data:q type=queue
+[A, B, C, D, E]
+^front=0 ^rear=4
+```
+````
+- Horizontal row with front/rear pointers.
+
+**Deque** (`type=deque`):
+````
+```data:dq type=deque
+[A, B, C, D]
+^front=0 ^rear=3
+```
+````
+- Same as queue with bidirectional arrows at both ends.
+
+**Ring Buffer** (`type=ring-buffer`):
+````
+```data:buf type=ring-buffer capacity=8
+[10, 20, 30, _, _, _, _, 80]
+^head=0 ^tail=2
+```
+````
+- Cells on a circle. Active segment (head→tail) accent-colored.
+
+#### Chain structures
+
+**Linked List** (`type=linked-list`):
 ````
 ```data:chain type=linked-list
 (head Alice) -> (n2 Bob) -> null
@@ -388,27 +427,145 @@ first: head
 second: n2
 ```
 ````
-
-- Nodes: `(id value)` or `(id)` (ID = display value)
-- Links: `->` between nodes, `-> null` for terminus
+- Nodes: `(id value)`, links: `->`, terminus: `-> null`
 - Blank line separates disconnected groups
-- Regions target node IDs
 
-**Binary tree:**
+**Doubly Linked List** (`type=doubly-linked-list`):
 ````
-```data:bst type=binary-tree
-[10, 5, 15, 3, 7, null, 20]
----
-root: 0
-left-subtree: 1, 3, 4
+```data:dll type=doubly-linked-list
+(a 10) <-> (b 20) <-> (c 30) -> null
+^head: a  ^tail: c
+```
+````
+- Same as linked-list but edges are bidirectional.
+
+**Skip List** (`type=skip-list`):
+````
+```data:sl type=skip-list
+L3: (H) -> (6) -> (nil)
+L2: (H) -> (3) -> (6) -> (nil)
+L1: (H) -> (1) -> (3) -> (4) -> (6) -> (nil)
+L0: (H) -> (1) -> (2) -> (3) -> (4) -> (5) -> (6) -> (nil)
+```
+````
+- One line per level (highest first). Same node at multiple levels vertically aligned.
+
+#### Tree structures
+
+**Tree** (`type=tree`) — replaces `binary-tree`. N-ary, supports 15 variants.
+
+*Indentation format (n-ary):*
+````
+```data:dom type=tree
+(nav)
+  (a:Home)
+  (a:About)
+  (a:Contact)
 ```
 ````
 
-- Heap-order array: `[root, left, right, left-left, left-right, ...]`
-- `null` for empty positions
-- Regions target array indices
+*Array format (binary, backward compat):*
+````
+```data:heap type=tree variant=heap-min
+[1, 3, 5, 7, 9, 8, 6]
+```
+````
 
-**Graph:**
+*Annotated format (red-black, AVL, etc.):*
+````
+```data:rbt type=tree variant=red-black
+(7:B)
+  (3:R)
+    (1:B)
+    (5:B)
+  (10:R)
+    (8:B)
+    (15:B)
+```
+````
+
+- `(id)` or `(id:annotation)` — annotation is text after colon
+- 2-space indent = one level deeper, first unindented = root
+- `^name: nodeId` for pointers
+- **Variants:** `generic` (default), `bst`, `avl`, `red-black`, `heap-min`, `heap-max`, `splay`, `treap`, `aa`, `segment`, `interval`, `fenwick`, `merkle`, `kd`, `rope`
+- Variant determines rendering: `red-black` → red/black color dots, `avl` → balance factor annotations, etc.
+- `binary-tree` is an alias for `tree` (backward compat)
+
+**B-Tree family** (`type=b-tree`):
+````
+```data:index type=b-tree order=3
+(root: 10, 20)
+  (a: 3, 5, 8)
+  (b: 12, 15)
+  (c: 25, 30, 40)
+```
+````
+- Wide-rect nodes containing multiple keys: `(id: k1, k2, k3)`
+- Indentation for children
+- **Variants:** `b-tree` (default), `b-plus-tree`, `2-3-tree`, `2-3-4-tree`
+- B+ tree adds horizontal leaf links. Use `variant=b-plus-tree`.
+
+**Trie family** (`type=trie`):
+````
+```data:words type=trie
+()
+  (c)
+    (a)
+      (t*)
+      (r*)
+  (d)
+    (o)
+      (g*)
+```
+````
+- `*` = terminal node (gets filled marker)
+- Single-char nodes for trie, multi-char for radix-tree
+- **Variants:** `trie` (default), `radix-tree`, `suffix-tree`
+
+#### Hash and probabilistic structures
+
+**Hash Map** (`type=hash-map`):
+````
+```data:phonebook type=hash-map
+0: (alice 555-1234) -> (bob 555-5678)
+1:
+2: (charlie 555-9012)
+3:
+```
+````
+- Vertical bucket column on left, horizontal chains extend right.
+- `N:` = bucket index. `(id value)` = chain nodes.
+
+**Bit Array / Bloom Filter** (`type=bit-array`):
+````
+```data:bf type=bit-array variant=bloom-filter
+[0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0]
+h1: 1, 4, 10
+h2: 6, 13
+```
+````
+- Row of small square cells. Active bits = accent fill.
+- Hash function lines: `name: idx1, idx2, ...`
+- **Variants:** `bloom-filter` (default), `cuckoo-filter`, `count-min-sketch`, `hyperloglog`
+- Count-min sketch: use `rows=N` param for multiple rows.
+
+#### Matrix
+
+**Matrix** (`type=matrix`):
+````
+```data:adj type=matrix
+    A  B  C  D
+A [ 0, 1, 0, 1 ]
+B [ 1, 0, 1, 0 ]
+C [ 0, 1, 0, 1 ]
+D [ 1, 0, 1, 0 ]
+```
+````
+- 2D grid with row/column headers. First line = column labels. Data rows = `Label [ values ]`.
+
+#### Graph
+
+**Graph** (`type=graph`):
 ````
 ```data:network type=graph layout=force
 A -> B, C: 5
@@ -419,13 +576,42 @@ entry: A
 exits: C, D
 ```
 ````
-
-- Directed edges: `A -> B`
-- Undirected edges: `A -- B`
-- Edge weights: `A -> B: 5`
-- Multiple targets: `A -> B, C: 5, D: 10`
-- Pointers: `^name: node-id`
+- Directed: `->`, Undirected: `--`, Weights: `: N`
 - Layout: `ring` (default), `force`, `tree`, `grid`, `bipartite`
+
+#### Composite structures
+
+**Union-Find** (`type=union-find`):
+````
+```data:uf type=union-find
+elements: [A, B, C, D, E, F]
+parent:   [0, 0, 1, 3, 3, 4]
+rank:     [2, 1, 0, 1, 0, 0]
+```
+````
+- Dual view: parent array on top, forest below.
+
+**LSM Tree** (`type=lsm-tree`):
+````
+```data:lsm type=lsm-tree
+memtable: [5, 12, 3, 8]
+L0: [1, 4, 7] [2, 6, 9]
+L1: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+```
+````
+- Vertical stack. Memtable at top, levels below with sorted runs.
+
+**Fibonacci Heap** (`type=fibonacci-heap`):
+````
+```data:fh type=fibonacci-heap
+tree1: (3) -> (7) -> (18) -> (24)
+tree2: (17) -> (30)
+tree3: (23) -> (26) -> (46)
+min: 3
+marked: 26
+```
+````
+- Multiple trees in a row. Root chain with doubly-linked dashed edges. Min pointer from above.
 
 ### Diagram blocks
 
@@ -735,16 +921,74 @@ When `target=block-name` points to a data or diagram block, the generator receiv
 - `data.next(id)` — next node ID (or `null`)
 - `data.value(id)` — node's display value
 
-**Binary tree (`type=binary-tree`):**
-- `data.nodes` — `string[]` of node IDs
-- `data.root` — root node ID (or `null`)
-- `data.left(id)` — left child ID (or `null`)
-- `data.right(id)` — right child ID (or `null`)
-- `data.value(id)` — node's display value
+**Doubly linked list (`type=doubly-linked-list`):**
+- Same as linked list, plus `data.prev(id)` — previous node ID (or `null`)
 
-**Array (`type=array`):**
+**Tree (`type=tree`):**
+- `data.root` — root node ID
+- `data.nodes` — `string[]` of all node IDs
+- `data.children(id)` — `string[]` of child IDs (ordered)
+- `data.parent(id)` — parent ID or `null`
+- `data.value(id)` — display value
+- `data.annotation(id)` — annotation string
+- `data.depth(id)` — depth from root
+- `data.subtree(id)` — all descendant IDs
+- `data.isLeaf(id)` — boolean
+- `data.left(id)` / `data.right(id)` — binary convenience (first/second child)
+- `data.inorder()` / `data.preorder()` / `data.postorder()` — traversal orders
+
+**B-Tree (`type=b-tree`):**
+- `data.root` — root node ID
+- `data.keys(nodeId)` — `string[]` of keys in that node
+- `data.children(nodeId)` — `string[]` of child node IDs
+- `data.search(key)` — `{ path: string[], found: boolean }`
+
+**Skip List (`type=skip-list`):**
+- `data.levels` — `{ level: number, nodeIds: string[] }[]`
+- `data.height(nodeId)` — how many levels a node appears in
+- `data.value(nodeId)` — display value
+- `data.search(value)` — `{ path: { level, nodeId }[], found: boolean }`
+
+**Hash Map (`type=hash-map`):**
+- `data.buckets` — `{ index: number, chain: string[] }[]`
+- `data.chainAt(bucketIndex)` — chain of node IDs at a bucket
+
+**Union-Find (`type=union-find`):**
+- `data.elements` — `string[]`
+- `data.find(element)` — root of element's set
+- `data.connected(a, b)` — boolean
+- `data.sets()` — `string[][]` grouped by connected component
+
+**Bit Array (`type=bit-array`):**
+- `data.bits` — `number[]`
+- `data.isSet(index)` — boolean
+- `data.hashIndices(name)` — indices for a named hash function
+
+**Array (`type=array`) / Queue / Deque:**
 - `data.values` — `string[]`
 - `data.length` — number of elements
+
+**Stack (`type=stack`):**
+- `data.values` — `string[]`
+- `data.topIndex` — index of top element
+
+**Ring Buffer (`type=ring-buffer`):**
+- `data.values` — `string[]`
+- `data.head` / `data.tail` — index positions
+- `data.capacity` — total slots
+
+**Matrix (`type=matrix`):**
+- `data.rows` — `string[][]`
+- `data.rowLabels` / `data.colLabels` — `string[]`
+
+**LSM Tree (`type=lsm-tree`):**
+- `data.memtable` — `string[]`
+- `data.levels` — `{ name, runs: string[][] }[]`
+
+**Fibonacci Heap (`type=fibonacci-heap`):**
+- `data.trees` — `{ rootId, nodes }[]`
+- `data.minId` — minimum node ID
+- `data.markedIds` — `string[]`
 
 **Diagram:**
 - `data.nodes` — `string[]` of node IDs

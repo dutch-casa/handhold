@@ -174,10 +174,37 @@ export type LinkedListData = {
   readonly floatingGroups: readonly (readonly DataNodeDef[])[];
 };
 
-export type BinaryTreeData = {
-  readonly type: "binary-tree";
-  readonly nodes: readonly DataNodeDef[];
-  readonly edges: readonly DataEdgeDef[];
+// N-ary tree: replaces BinaryTreeData. Variant controls rendering hints
+// (color dots for red-black, balance factors for AVL, etc.)
+export type TreeNodeDef = {
+  readonly id: string;
+  readonly value: string;
+  readonly children: readonly string[];
+  readonly annotation: string;
+};
+
+export type TreeVariant =
+  | "generic"
+  | "bst"
+  | "avl"
+  | "red-black"
+  | "heap-min"
+  | "heap-max"
+  | "splay"
+  | "treap"
+  | "aa"
+  | "segment"
+  | "interval"
+  | "fenwick"
+  | "merkle"
+  | "kd"
+  | "rope";
+
+export type TreeData = {
+  readonly type: "tree";
+  readonly variant: TreeVariant;
+  readonly nodes: readonly TreeNodeDef[];
+  readonly rootId: string;
   readonly pointers: readonly DataPointerDef[];
 };
 
@@ -212,16 +239,160 @@ export type GraphData = {
   readonly layout: GraphLayoutKind;
 };
 
+export type QueueData = {
+  readonly type: "queue";
+  readonly values: readonly string[];
+  readonly front: number;
+  readonly rear: number;
+  readonly pointers: readonly DataPointerDef[];
+};
+
+export type DequeData = {
+  readonly type: "deque";
+  readonly values: readonly string[];
+  readonly front: number;
+  readonly rear: number;
+  readonly pointers: readonly DataPointerDef[];
+};
+
+export type RingBufferData = {
+  readonly type: "ring-buffer";
+  readonly values: readonly string[];
+  readonly head: number;
+  readonly tail: number;
+  readonly capacity: number;
+};
+
+export type DoublyLinkedListData = {
+  readonly type: "doubly-linked-list";
+  readonly nodes: readonly DataNodeDef[];
+  readonly edges: readonly DataEdgeDef[];
+  readonly pointers: readonly DataPointerDef[];
+  readonly hasNull: boolean;
+};
+
+export type SkipListLevel = {
+  readonly level: number;
+  readonly nodeIds: readonly string[];
+};
+
+export type SkipListData = {
+  readonly type: "skip-list";
+  readonly nodes: readonly DataNodeDef[];
+  readonly levels: readonly SkipListLevel[];
+  readonly pointers: readonly DataPointerDef[];
+};
+
+export type BTreeNodeDef = {
+  readonly id: string;
+  readonly keys: readonly string[];
+  readonly children: readonly string[];
+};
+
+export type BTreeVariant = "b-tree" | "b-plus-tree" | "2-3-tree" | "2-3-4-tree";
+
+export type BTreeData = {
+  readonly type: "b-tree";
+  readonly variant: BTreeVariant;
+  readonly nodes: readonly BTreeNodeDef[];
+  readonly rootId: string;
+  readonly order: number;
+  readonly pointers: readonly DataPointerDef[];
+  readonly leafLinks: boolean;
+};
+
+export type TrieNodeDef = {
+  readonly id: string;
+  readonly value: string;
+  readonly terminal: boolean;
+  readonly children: readonly string[];
+};
+
+export type TrieVariant = "trie" | "radix-tree" | "suffix-tree";
+
+export type TrieData = {
+  readonly type: "trie";
+  readonly variant: TrieVariant;
+  readonly nodes: readonly TrieNodeDef[];
+  readonly rootId: string;
+  readonly pointers: readonly DataPointerDef[];
+};
+
+export type BitArrayVariant =
+  | "bloom-filter"
+  | "cuckoo-filter"
+  | "count-min-sketch"
+  | "hyperloglog";
+
+export type HashHighlight = {
+  readonly name: string;
+  readonly indices: readonly number[];
+};
+
+export type BitArrayData = {
+  readonly type: "bit-array";
+  readonly variant: BitArrayVariant;
+  readonly bits: readonly number[];
+  readonly hashHighlights: readonly HashHighlight[];
+  readonly rows: number;
+};
+
+export type MatrixData = {
+  readonly type: "matrix";
+  readonly rows: readonly (readonly string[])[];
+  readonly rowLabels: readonly string[];
+  readonly colLabels: readonly string[];
+};
+
+export type UnionFindData = {
+  readonly type: "union-find";
+  readonly elements: readonly string[];
+  readonly parent: readonly number[];
+  readonly rank: readonly number[];
+  readonly pointers: readonly DataPointerDef[];
+};
+
+export type LsmTreeData = {
+  readonly type: "lsm-tree";
+  readonly memtable: readonly string[];
+  readonly levels: readonly {
+    readonly name: string;
+    readonly runs: readonly (readonly string[])[];
+  }[];
+};
+
+export type FibonacciHeapData = {
+  readonly type: "fibonacci-heap";
+  readonly trees: readonly {
+    readonly rootId: string;
+    readonly nodes: readonly TreeNodeDef[];
+  }[];
+  readonly minId: string;
+  readonly markedIds: readonly string[];
+};
+
 export type DataState = {
   readonly kind: "data";
   readonly name: string;
   readonly data:
     | ArrayData
     | LinkedListData
-    | BinaryTreeData
+    | TreeData
     | StackData
     | HashMapData
-    | GraphData;
+    | GraphData
+    | QueueData
+    | DequeData
+    | RingBufferData
+    | DoublyLinkedListData
+    | SkipListData
+    | BTreeData
+    | TrieData
+    | BitArrayData
+    | MatrixData
+    | UnionFindData
+    | LsmTreeData
+    | FibonacciHeapData;
   readonly regions: readonly RegionDef[];
 };
 

@@ -1,5 +1,18 @@
 // Output of layout algorithms. Renderer consumes these — never raw DataState.
 
+export type NodeShape = "rect" | "circle" | "wide-rect" | "diamond";
+
+export type NodeMarker =
+  | "terminal"
+  | "active-bit"
+  | "inactive-bit"
+  | "bucket-header"
+  | "red"
+  | "black"
+  | "marked";
+
+export type EdgeStyle = "solid" | "dashed" | "double";
+
 export type PositionedNode = {
   readonly id: string;
   readonly value: string;
@@ -7,7 +20,9 @@ export type PositionedNode = {
   readonly y: number;
   readonly width: number;
   readonly height: number;
-  readonly shape?: "rect" | "circle";
+  readonly shape?: NodeShape | undefined;
+  readonly marker?: NodeMarker | undefined;
+  readonly secondaryValue?: string | undefined;
 };
 
 export type PositionedEdge = {
@@ -16,7 +31,9 @@ export type PositionedEdge = {
   readonly y1: number;
   readonly x2: number;
   readonly y2: number;
-  readonly label?: string;
+  readonly label?: string | undefined;
+  readonly style?: EdgeStyle | undefined;
+  readonly bidirectional?: true | undefined;
 };
 
 export type PositionedPointer = {

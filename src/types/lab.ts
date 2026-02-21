@@ -18,6 +18,7 @@ export type ParsedLab = {
   readonly title: string;
   readonly instructions: string;
   readonly filesPath: string;
+  readonly solutionPath: string | undefined;
   readonly workspace: "fresh" | "continue";
   readonly testCommand: string;
   readonly openFiles: readonly string[];

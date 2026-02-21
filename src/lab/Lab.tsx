@@ -78,6 +78,7 @@ export function Lab({ manifest, workspacePath, nav }: LabProps) {
       { id: "focus-services", label: "Focus Services", execute: () => useSettingsStore.getState().setSidebarPanel("services") },
       { id: "focus-testing", label: "Focus Testing", execute: () => useSettingsStore.getState().setSidebarPanel("testing") },
       { id: "focus-settings", label: "Focus Settings", execute: () => useSettingsStore.getState().setSidebarPanel("settings") },
+      ...(lab.solution.available ? [{ id: "focus-solution", label: "Focus Solution", execute: () => useSettingsStore.getState().setSidebarPanel("solution") }] : []),
       { id: "toggle-minimap", label: "Toggle Minimap", execute: () => {
         const s = useSettingsStore.getState();
         s.setEditor({ ...s.editor, minimap: !s.editor.minimap });
@@ -118,7 +119,7 @@ export function Lab({ manifest, workspacePath, nav }: LabProps) {
   return (
     <>
       <LabLayout
-        activityBar={<ActivityBar />}
+        activityBar={<ActivityBar solutionAvailable={lab.solution.available} />}
         sidebarCollapsed={sidebarCollapsed}
         sidebar={
           <SidebarContent
@@ -126,9 +127,11 @@ export function Lab({ manifest, workspacePath, nav }: LabProps) {
             files={lab.files}
             test={lab.test}
             services={lab.services}
+            solution={lab.solution}
             instructions={lab.instructions}
             onFileSelect={lab.editor.open}
             onGoToLine={lab.editor.goToLine}
+            onViewSolution={lab.solution.available ? () => useSettingsStore.getState().setSidebarPanel("solution") : undefined}
           />
         }
         editor={<EditorArea editor={lab.editor} requestClose={lab.ui.requestClose} tree={lab.files.tree} rootPath={lab.files.rootPath} />}

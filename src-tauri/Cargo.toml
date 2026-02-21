@@ -15,15 +15,18 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 base64 = "0.22"
 tauri-plugin-shell = "2"
+tauri-plugin-deep-link = "2"
 dirs = "6"
 portable-pty = "0.9"
 uuid = { version = "1", features = ["v4"] }
 parking_lot = "0.12"
 notify = "7"
 rusqlite = { version = "0.32", features = ["bundled"] }
-reqwest = { version = "0.12", features = ["rustls-tls"], default-features = false }
+reqwest = { version = "0.12", features = ["rustls-tls", "blocking"], default-features = false }
 serde_yml = "0.0.12"
 sha2 = "0.10"
+tar = "0.4"
+flate2 = "1.0"
 regex = "1"
 swc_common = "18"
 swc_ecma_parser = "33"

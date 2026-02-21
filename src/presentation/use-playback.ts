@@ -14,6 +14,10 @@ import { playSound } from "@/sound/use-sound";
 //   2. Timeline changes       → create/dispose scheduler (useEffect on derived memo).
 //   3. Store state changes     → sync player/scheduler (zustand subscribe, not useEffect).
 // Plus background prefetch: while step N plays, synthesize step N+1 via useTTS.
+//
+// Sync invariant: Bridge 3 only starts playback when the loaded audio matches
+// the current narration text. On step transitions, the audio is stale until
+// Bridge 1 finishes loading. Bridge 1 auto-plays if status is "playing".
 
 export type UsePlaybackResult = {
   readonly playerRef: React.RefObject<AudioPlayer | null>;
@@ -39,7 +43,14 @@ export function usePlayback(): UsePlaybackResult {
   const schedulerRef = useRef<EventScheduler | null>(null);
   const timelineRef = useRef<readonly TimelineEvent[]>([]);
 
+  // Tracks which narration the player has actually loaded audio for.
+  // Bridge 3 gates playback on this matching the current narration text.
+  const readyTextRef = useRef("");
+
   const narrationText = step?.narration.map((n) => n.text).join(" ") ?? "";
+  const narrationTextRef = useRef(narrationText);
+  narrationTextRef.current = narrationText;
+
   const bundlePath = usePresentationStore((s) => s.bundlePath);
   const { data: synthesis } = useTTS(narrationText, bundlePath);
 
@@ -68,16 +79,23 @@ export function usePlayback(): UsePlaybackResult {
   }, []);
 
   // Bridge 1: Synthesis data → player.load(). Auto-plays if store is already "playing".
-  const loadedTextRef = useRef("");
   useEffect(() => {
-    if (!synthesis || loadedTextRef.current === narrationText) return;
-    loadedTextRef.current = narrationText;
+    if (!synthesis) return;
+
+    // Mark audio as not ready for the new text until load completes.
+    readyTextRef.current = "";
+
     let cancelled = false;
     const player = playerRef.current!;
     player.stop();
     player.load(synthesis.audioBase64).then(() => {
       if (cancelled) return;
-      if (usePresentationStore.getState().status === "playing") {
+      readyTextRef.current = narrationText;
+
+      const { status, playbackRate } = usePresentationStore.getState();
+      player.setRate(playbackRate);
+
+      if (status === "playing") {
         player.play();
         schedulerRef.current?.play(player.currentTimeMs());
       }
@@ -113,6 +131,8 @@ export function usePlayback(): UsePlaybackResult {
   }, [timeline]);
 
   // Bridge 3: Store → player/scheduler.
+  // Only plays when readyTextRef matches the current narration — prevents
+  // firing a stale scheduler from the previous step during transitions.
   useEffect(() => {
     return usePresentationStore.subscribe((state, prev) => {
       const player = playerRef.current;
@@ -121,10 +141,15 @@ export function usePlayback(): UsePlaybackResult {
 
       if (state.status !== prev.status) {
         switch (state.status) {
-          case "playing":
-            player.play();
-            scheduler?.play(player.currentTimeMs());
+          case "playing": {
+            const audioReady = readyTextRef.current === narrationTextRef.current;
+            if (audioReady) {
+              player.play();
+              scheduler?.play(player.currentTimeMs());
+            }
+            // If not ready, Bridge 1 will start playback when audio loads.
             break;
+          }
           case "paused":
             player.pause();
             scheduler?.pause();

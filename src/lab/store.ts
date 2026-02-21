@@ -49,6 +49,9 @@ type LabStoreState = {
   readonly selectedService: string | undefined;
   readonly containerLogs: ReadonlyMap<string, readonly string[]>;
 
+  // Solution viewer
+  readonly solutionOpenPaths: ReadonlySet<string>;
+
   // UI panels
   readonly paletteOpen: boolean;
   readonly paletteQuery: string;
@@ -89,6 +92,8 @@ type LabStoreActions = {
   closeOthers: (path: string) => void;
   closeAll: () => void;
   closeSaved: () => void;
+  openSolutionFile: (path: string, content: string) => void;
+  closeSolutionFile: (path: string) => void;
   promptClose: (path: string) => void;
   confirmClose: () => void;
   cancelClose: () => void;
@@ -112,6 +117,7 @@ function initialState(_lab: ParsedLab): LabStoreState {
     serviceStatuses: new Map(),
     selectedService: undefined,
     containerLogs: new Map(),
+    solutionOpenPaths: new Set(),
     paletteOpen: false,
     paletteQuery: "",
     paletteCommandMode: false,
@@ -361,6 +367,23 @@ export function createLabStore(lab: ParsedLab) {
       // I7: can't be same as left
       if (path === activePath) return;
       set({ rightActivePath: path });
+    },
+
+    // Opens a solution file in the right split pane as read-only.
+    // Tracks the path in solutionOpenPaths so editor can enforce readOnly.
+    openSolutionFile: (path) => {
+      const { openPaths, solutionOpenPaths } = get();
+      const nextOpen = openPaths.includes(path) ? openPaths : [...openPaths, path];
+      const nextSolution = new Set(solutionOpenPaths);
+      nextSolution.add(path);
+      set({ openPaths: nextOpen, solutionOpenPaths: nextSolution, rightActivePath: path, focusedPane: "right" });
+    },
+
+    closeSolutionFile: (path) => {
+      const nextSolution = new Set(get().solutionOpenPaths);
+      nextSolution.delete(path);
+      set({ solutionOpenPaths: nextSolution });
+      get().closeFile(path);
     },
 
     // { path ∈ openPaths } promptClose(path) {

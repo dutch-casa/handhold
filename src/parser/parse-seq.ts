@@ -1,5 +1,15 @@
 import type { VisualizationState, DataState, DiagramState } from "@/types/lesson";
-import type { GraphData, LinkedListData, BinaryTreeData } from "@/types/lesson";
+import type {
+  GraphData,
+  LinkedListData,
+  TreeData,
+  BTreeData,
+  SkipListData,
+  HashMapData,
+  UnionFindData,
+  DoublyLinkedListData,
+  BitArrayData,
+} from "@/types/lesson";
 
 // Seq block: a generator that yields animation commands at parse time.
 // Pure module — no side effects, no DOM, no React.
@@ -79,14 +89,36 @@ function buildFromData(data: DataState["data"]): unknown {
       return graphApi(data);
     case "linked-list":
       return linkedListApi(data);
-    case "binary-tree":
-      return binaryTreeApi(data);
+    case "doubly-linked-list":
+      return doublyLinkedListApi(data);
+    case "tree":
+      return treeApi(data);
+    case "b-tree":
+      return bTreeApi(data);
+    case "skip-list":
+      return skipListApi(data);
+    case "hash-map":
+      return hashMapApi(data);
+    case "union-find":
+      return unionFindApi(data);
+    case "bit-array":
+      return bitArrayApi(data);
     case "array":
+    case "queue":
+    case "deque":
       return { values: [...data.values], length: data.values.length };
     case "stack":
       return { values: [...data.values], topIndex: data.topIndex };
-    case "hash-map":
-      return { buckets: data.buckets.map((b) => ({ index: b.index, chain: [...b.chain] })) };
+    case "ring-buffer":
+      return { values: [...data.values], head: data.head, tail: data.tail, capacity: data.capacity };
+    case "trie":
+      return { nodes: data.nodes.map((n) => n.id), rootId: data.rootId };
+    case "matrix":
+      return { rows: data.rows, rowLabels: data.rowLabels, colLabels: data.colLabels };
+    case "lsm-tree":
+      return { memtable: [...data.memtable], levels: data.levels };
+    case "fibonacci-heap":
+      return { trees: data.trees, minId: data.minId, markedIds: [...data.markedIds] };
   }
 }
 
@@ -121,27 +153,209 @@ function linkedListApi(data: LinkedListData) {
   };
 }
 
-function binaryTreeApi(data: BinaryTreeData) {
-  const childMap = new Map<string, { left: string | null; right: string | null }>();
-  const byParent = new Map<string, string[]>();
-  for (const edge of data.edges) {
-    const arr = byParent.get(edge.fromId) ?? [];
-    arr.push(edge.toId);
-    byParent.set(edge.fromId, arr);
-  }
+function treeApi(data: TreeData) {
+  const nodeMap = new Map(data.nodes.map((n) => [n.id, n]));
+  const parentMap = new Map<string, string>();
   for (const node of data.nodes) {
-    const children = byParent.get(node.id) ?? [];
-    childMap.set(node.id, { left: children[0] ?? null, right: children[1] ?? null });
+    for (const childId of node.children) {
+      parentMap.set(childId, node.id);
+    }
+  }
+
+  function depthOf(id: string): number {
+    let d = 0;
+    let current = id;
+    while (parentMap.has(current)) {
+      current = parentMap.get(current)!;
+      d++;
+    }
+    return d;
+  }
+
+  function subtreeOf(id: string): string[] {
+    const result: string[] = [];
+    const stack = [id];
+    while (stack.length > 0) {
+      const cur = stack.pop()!;
+      result.push(cur);
+      const node = nodeMap.get(cur);
+      if (node) {
+        for (let i = node.children.length - 1; i >= 0; i--) {
+          const child = node.children[i];
+          if (child) stack.push(child);
+        }
+      }
+    }
+    return result;
+  }
+
+  function inorder(id: string): string[] {
+    const node = nodeMap.get(id);
+    if (!node) return [];
+    if (node.children.length === 0) return [id];
+    const left = node.children[0] ? inorder(node.children[0]) : [];
+    const right = node.children[1] ? inorder(node.children[1]) : [];
+    return [...left, id, ...right];
+  }
+
+  function preorder(id: string): string[] {
+    const node = nodeMap.get(id);
+    if (!node) return [];
+    return [id, ...node.children.flatMap((c) => preorder(c))];
+  }
+
+  function postorder(id: string): string[] {
+    const node = nodeMap.get(id);
+    if (!node) return [];
+    return [...node.children.flatMap((c) => postorder(c)), id];
+  }
+
+  return {
+    root: data.rootId,
+    nodes: data.nodes.map((n) => n.id),
+    children: (id: string) => [...(nodeMap.get(id)?.children ?? [])],
+    parent: (id: string) => parentMap.get(id) ?? null,
+    value: (id: string) => nodeMap.get(id)?.value ?? "",
+    annotation: (id: string) => nodeMap.get(id)?.annotation ?? "",
+    depth: depthOf,
+    subtree: subtreeOf,
+    isLeaf: (id: string) => (nodeMap.get(id)?.children.length ?? 0) === 0,
+    left: (id: string) => nodeMap.get(id)?.children[0] ?? null,
+    right: (id: string) => nodeMap.get(id)?.children[1] ?? null,
+    inorder: () => data.rootId ? inorder(data.rootId) : [],
+    preorder: () => data.rootId ? preorder(data.rootId) : [],
+    postorder: () => data.rootId ? postorder(data.rootId) : [],
+  };
+}
+
+function doublyLinkedListApi(data: DoublyLinkedListData) {
+  const nextMap = new Map<string, string>();
+  const prevMap = new Map<string, string>();
+  for (const edge of data.edges) {
+    nextMap.set(edge.fromId, edge.toId);
+    prevMap.set(edge.toId, edge.fromId);
   }
   const targeted = new Set(data.edges.map((e) => e.toId));
-  const root = data.nodes.find((n) => !targeted.has(n.id))?.id ?? null;
+  const head = data.nodes.find((n) => !targeted.has(n.id))?.id ?? null;
 
   return {
     nodes: data.nodes.map((n) => n.id),
-    root,
-    left: (id: string) => childMap.get(id)?.left ?? null,
-    right: (id: string) => childMap.get(id)?.right ?? null,
+    head,
+    next: (id: string) => nextMap.get(id) ?? null,
+    prev: (id: string) => prevMap.get(id) ?? null,
     value: (id: string) => data.nodes.find((n) => n.id === id)?.value ?? "",
+  };
+}
+
+function bTreeApi(data: BTreeData) {
+  const nodeMap = new Map(data.nodes.map((n) => [n.id, n]));
+
+  function searchPath(key: string): { path: string[]; found: boolean } {
+    const path: string[] = [];
+    let current = data.rootId;
+    while (current) {
+      path.push(current);
+      const node = nodeMap.get(current);
+      if (!node) break;
+      if (node.keys.includes(key)) return { path, found: true };
+      // Find which child to descend into
+      let childIdx = node.keys.length;
+      for (let i = 0; i < node.keys.length; i++) {
+        const k = node.keys[i];
+        if (k && key < k) { childIdx = i; break; }
+      }
+      current = node.children[childIdx] ?? "";
+      if (!current) break;
+    }
+    return { path, found: false };
+  }
+
+  return {
+    root: data.rootId,
+    keys: (nodeId: string) => [...(nodeMap.get(nodeId)?.keys ?? [])],
+    children: (nodeId: string) => [...(nodeMap.get(nodeId)?.children ?? [])],
+    search: searchPath,
+  };
+}
+
+function skipListApi(data: SkipListData) {
+  const nodeValues = new Map(data.nodes.map((n) => [n.id, n.value]));
+
+  return {
+    levels: data.levels.map((l) => ({ level: l.level, nodeIds: [...l.nodeIds] })),
+    height: (nodeId: string) => data.levels.filter((l) => l.nodeIds.includes(nodeId)).length,
+    value: (nodeId: string) => nodeValues.get(nodeId) ?? "",
+    search: (value: string) => {
+      const path: { level: number; nodeId: string }[] = [];
+      for (const level of data.levels) {
+        for (const nodeId of level.nodeIds) {
+          path.push({ level: level.level, nodeId });
+          if (nodeValues.get(nodeId) === value) return { path, found: true };
+        }
+      }
+      return { path, found: false };
+    },
+  };
+}
+
+function hashMapApi(data: HashMapData) {
+  return {
+    buckets: data.buckets.map((b) => ({
+      index: b.index,
+      chain: b.chain.map((n) => n.id),
+    })),
+    chainAt: (bucketIndex: number) => {
+      const bucket = data.buckets.find((b) => b.index === bucketIndex);
+      return bucket ? bucket.chain.map((n) => n.id) : [];
+    },
+  };
+}
+
+function unionFindApi(data: UnionFindData) {
+  function findRoot(idx: number): number {
+    let current = idx;
+    while (true) {
+      const parent = data.parent[current];
+      if (parent === undefined || parent === current) return current;
+      current = parent;
+    }
+  }
+
+  return {
+    elements: [...data.elements],
+    find: (element: string) => {
+      const idx = data.elements.indexOf(element);
+      if (idx === -1) return null;
+      const rootIdx = findRoot(idx);
+      return data.elements[rootIdx] ?? null;
+    },
+    connected: (a: string, b: string) => {
+      const ai = data.elements.indexOf(a);
+      const bi = data.elements.indexOf(b);
+      if (ai === -1 || bi === -1) return false;
+      return findRoot(ai) === findRoot(bi);
+    },
+    sets: () => {
+      const groups = new Map<number, string[]>();
+      for (let i = 0; i < data.elements.length; i++) {
+        const root = findRoot(i);
+        const group = groups.get(root) ?? [];
+        const el = data.elements[i];
+        if (el) group.push(el);
+        groups.set(root, group);
+      }
+      return [...groups.values()];
+    },
+  };
+}
+
+function bitArrayApi(data: BitArrayData) {
+  const hashMap = new Map(data.hashHighlights.map((h) => [h.name, h.indices]));
+
+  return {
+    bits: [...data.bits],
+    isSet: (index: number) => (data.bits[index] ?? 0) > 0,
+    hashIndices: (name: string) => [...(hashMap.get(name) ?? [])],
   };
 }
 

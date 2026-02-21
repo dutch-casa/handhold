@@ -3,7 +3,6 @@ use rusqlite::{params, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::path::PathBuf;
-use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::State;
 
@@ -11,7 +10,7 @@ use tauri::State;
 #[serde(rename_all = "camelCase")]
 pub struct CourseRecord {
     pub id: String,
-    pub github_url: String,
+    pub source_url: String,
     pub local_path: String,
     pub title: String,
     pub description: String,
@@ -30,7 +29,7 @@ pub enum ImportResult {
     NoManifest,
     BadManifest { reason: String },
     AlreadyExists,
-    CloneFailed { reason: String },
+    DownloadFailed { reason: String },
 }
 
 #[derive(Serialize, Deserialize)]
@@ -84,11 +83,113 @@ pub struct CourseManifest {
     pub steps: Vec<ManifestStep>,
 }
 
-fn course_id(github_url: &str) -> String {
+enum CourseSource {
+    GitHub { owner: String, repo: String, branch: String, path: String },
+    Http { manifest_url: String, base_url: String },
+}
+
+fn hash_id(input: &str) -> String {
     let mut hasher = Sha256::new();
-    hasher.update(github_url.as_bytes());
+    hasher.update(input.as_bytes());
     let hash = hasher.finalize();
     format!("{:x}", hash)[..16].to_string()
+}
+
+fn source_id(source: &CourseSource) -> String {
+    match source {
+        CourseSource::GitHub { owner, repo, path, .. } => {
+            if path.is_empty() {
+                hash_id(&format!("https://github.com/{owner}/{repo}"))
+            } else {
+                hash_id(&format!("https://github.com/{owner}/{repo}/{path}"))
+            }
+        }
+        CourseSource::Http { manifest_url, .. } => hash_id(manifest_url),
+    }
+}
+
+fn manifest_url(source: &CourseSource) -> String {
+    match source {
+        CourseSource::GitHub { owner, repo, branch, path } => {
+            if path.is_empty() {
+                format!("https://raw.githubusercontent.com/{owner}/{repo}/{branch}/handhold.yaml")
+            } else {
+                format!("https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{path}/handhold.yaml")
+            }
+        }
+        CourseSource::Http { manifest_url, .. } => manifest_url.clone(),
+    }
+}
+
+fn canonical_source_url(source: &CourseSource) -> String {
+    match source {
+        CourseSource::GitHub { owner, repo, path, .. } => {
+            if path.is_empty() {
+                format!("https://github.com/{owner}/{repo}")
+            } else {
+                format!("https://github.com/{owner}/{repo}/{path}")
+            }
+        }
+        CourseSource::Http { manifest_url, .. } => manifest_url.clone(),
+    }
+}
+
+fn parse_source_url(url: &str) -> Option<CourseSource> {
+    let url = url.trim().trim_end_matches('/');
+    let parsed = reqwest::Url::parse(url).ok()?;
+    let host = parsed.host_str()?;
+    let segments: Vec<&str> = parsed.path_segments()?.filter(|s| !s.is_empty()).collect();
+
+    if host == "raw.githubusercontent.com" {
+        // raw.githubusercontent.com/{owner}/{repo}/{branch}/{path}/handhold.yaml
+        if segments.len() < 3 { return None; }
+        let owner = segments[0].to_string();
+        let repo = segments[1].to_string();
+        let branch = segments[2].to_string();
+        let remaining: Vec<&str> = segments[3..].to_vec();
+        let path = if remaining.last().is_some_and(|s| *s == "handhold.yaml") {
+            remaining[..remaining.len() - 1].join("/")
+        } else {
+            remaining.join("/")
+        };
+        return Some(CourseSource::GitHub { owner, repo, branch, path });
+    }
+
+    if host == "github.com" {
+        if segments.len() < 2 { return None; }
+        let owner = segments[0].trim_end_matches(".git").to_string();
+        let repo = segments[1].trim_end_matches(".git").to_string();
+        if owner.is_empty() || repo.is_empty() { return None; }
+
+        // github.com/{o}/{r} (root)
+        if segments.len() == 2 {
+            return Some(CourseSource::GitHub { owner, repo, branch: "HEAD".to_string(), path: String::new() });
+        }
+
+        // github.com/{o}/{r}/blob/{branch}/{path...}[/handhold.yaml]
+        // github.com/{o}/{r}/tree/{branch}/{path...}
+        if segments.len() >= 4 && (segments[2] == "blob" || segments[2] == "tree") {
+            let branch = segments[3].to_string();
+            let remaining: Vec<&str> = segments[4..].to_vec();
+            let path = if remaining.last().is_some_and(|s| *s == "handhold.yaml") {
+                remaining[..remaining.len() - 1].join("/")
+            } else {
+                remaining.join("/")
+            };
+            return Some(CourseSource::GitHub { owner, repo, branch, path });
+        }
+
+        // Fall through: unknown github.com path shape → root
+        return Some(CourseSource::GitHub { owner, repo, branch: "HEAD".to_string(), path: String::new() });
+    }
+
+    // Any other URL ending in /handhold.yaml → Http source
+    if url.ends_with("/handhold.yaml") {
+        let base_url = url.trim_end_matches("handhold.yaml").to_string();
+        return Some(CourseSource::Http { manifest_url: url.to_string(), base_url });
+    }
+
+    None
 }
 
 fn courses_dir() -> PathBuf {
@@ -128,6 +229,8 @@ pub struct LabData {
     pub instructions: String,
     pub has_scaffold: bool,
     pub scaffold_path: String,
+    pub has_solution: bool,
+    pub solution_path: String,
     pub lab_dir_path: String,
     pub workspace_path: String,
     pub config: RawLabConfig,
@@ -140,26 +243,96 @@ fn now_ms() -> i64 {
         .as_millis() as i64
 }
 
-/// Parse "https://github.com/owner/repo" into (owner, repo).
-fn parse_github_url(url: &str) -> Option<(String, String)> {
-    let url = url.trim().trim_end_matches('/').trim_end_matches(".git");
-    let parts: Vec<&str> = url.split('/').collect();
-    let len = parts.len();
-    if len < 2 {
-        return None;
+fn download_github_tarball(
+    owner: &str,
+    repo: &str,
+    branch: &str,
+    subpath: &str,
+    dest: &std::path::Path,
+) -> Result<(), String> {
+    let url = format!("https://github.com/{owner}/{repo}/archive/refs/heads/{branch}.tar.gz");
+    let resp = reqwest::blocking::get(&url)
+        .and_then(reqwest::blocking::Response::error_for_status)
+        .map_err(|e| format!("Failed to download tarball: {e}"))?;
+    let bytes = resp.bytes()
+        .map_err(|e| format!("Failed to read tarball: {e}"))?;
+
+    let decoder = flate2::read::GzDecoder::new(std::io::Cursor::new(&bytes));
+    let mut archive = tar::Archive::new(decoder);
+
+    // Tarball root is "{repo}-{branch}/"
+    let prefix = if subpath.is_empty() {
+        format!("{repo}-{branch}/")
+    } else {
+        format!("{repo}-{branch}/{subpath}/")
+    };
+
+    for entry in archive.entries().map_err(|e| format!("Tar read error: {e}"))? {
+        let mut entry = entry.map_err(|e| format!("Tar entry error: {e}"))?;
+        let entry_path = entry.path().map_err(|e| format!("Tar path error: {e}"))?.into_owned();
+        let entry_str = entry_path.to_string_lossy();
+
+        if !entry_str.starts_with(&prefix) {
+            continue;
+        }
+
+        let relative = &entry_str[prefix.len()..];
+        if relative.is_empty() {
+            continue;
+        }
+
+        let out_path = dest.join(relative);
+        if entry.header().entry_type().is_dir() {
+            std::fs::create_dir_all(&out_path)
+                .map_err(|e| format!("Failed to create dir {}: {e}", out_path.display()))?;
+        } else {
+            if let Some(parent) = out_path.parent() {
+                std::fs::create_dir_all(parent)
+                    .map_err(|e| format!("Failed to create parent dir: {e}"))?;
+            }
+            let mut outfile = std::fs::File::create(&out_path)
+                .map_err(|e| format!("Failed to create file {}: {e}", out_path.display()))?;
+            std::io::copy(&mut entry, &mut outfile)
+                .map_err(|e| format!("Failed to write file {}: {e}", out_path.display()))?;
+        }
     }
-    let owner = parts.get(len - 2)?;
-    let repo = parts.get(len - 1)?;
-    if owner.is_empty() || repo.is_empty() {
-        return None;
+
+    Ok(())
+}
+
+fn download_http_course(
+    base_url: &str,
+    manifest_text: &str,
+    manifest: &Manifest,
+    dest: &std::path::Path,
+) -> Result<(), String> {
+    std::fs::write(dest.join("handhold.yaml"), manifest_text)
+        .map_err(|e| format!("Failed to write manifest: {e}"))?;
+
+    for step in &manifest.steps {
+        let file_url = format!("{}{}", base_url, step.path);
+        let resp = reqwest::blocking::get(&file_url)
+            .and_then(reqwest::blocking::Response::error_for_status)
+            .map_err(|e| format!("Failed to download {}: {e}", step.path))?;
+        let bytes = resp.bytes()
+            .map_err(|e| format!("Failed to read {}: {e}", step.path))?;
+
+        let out_path = dest.join(&step.path);
+        if let Some(parent) = out_path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create dir for {}: {e}", step.path))?;
+        }
+        std::fs::write(&out_path, &bytes)
+            .map_err(|e| format!("Failed to write {}: {e}", step.path))?;
     }
-    Some((owner.to_string(), repo.to_string()))
+
+    Ok(())
 }
 
 fn read_course_row(conn: &rusqlite::Connection, id: &str) -> Result<CourseRecord, String> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, github_url, local_path, title, description, step_count, added_at
+            "SELECT id, source_url, local_path, title, description, step_count, added_at
              FROM course WHERE id = ?1",
         )
         .map_err(|e| e.to_string())?;
@@ -168,7 +341,7 @@ fn read_course_row(conn: &rusqlite::Connection, id: &str) -> Result<CourseRecord
         .query_row(params![id], |row| {
             Ok(CourseRecord {
                 id: row.get(0)?,
-                github_url: row.get(1)?,
+                source_url: row.get(1)?,
                 local_path: row.get(2)?,
                 title: row.get(3)?,
                 description: row.get(4)?,
@@ -201,20 +374,20 @@ fn read_course_row(conn: &rusqlite::Connection, id: &str) -> Result<CourseRecord
 }
 
 #[tauri::command]
-pub async fn course_import(db: State<'_, Db>, github_url: String) -> Result<ImportResult, String> {
-    let (owner, repo) = match parse_github_url(&github_url) {
-        Some(pair) => pair,
+pub async fn course_import(db: State<'_, Db>, source_url: String) -> Result<ImportResult, String> {
+    let source = match parse_source_url(&source_url) {
+        Some(s) => s,
         None => return Ok(ImportResult::InvalidUrl),
     };
 
-    let id = course_id(&github_url);
+    let id = source_id(&source);
 
     {
         let conn = db.0.lock();
         let exists: bool = conn
             .query_row(
-                "SELECT count(*) > 0 FROM course WHERE id = ?1",
-                params![&id],
+                "SELECT count(*) > 0 FROM course WHERE id = ?1 OR source_url = ?2",
+                params![&id, &canonical_source_url(&source)],
                 |row| row.get(0),
             )
             .unwrap_or(false);
@@ -223,8 +396,7 @@ pub async fn course_import(db: State<'_, Db>, github_url: String) -> Result<Impo
         }
     }
 
-    // Validate manifest via raw GitHub fetch — reject before wasting bandwidth on a full clone
-    let raw_url = format!("https://raw.githubusercontent.com/{owner}/{repo}/HEAD/handhold.yaml");
+    let raw_url = manifest_url(&source);
     let manifest_text = match reqwest::get(&raw_url).await {
         Ok(resp) if resp.status().is_success() => match resp.text().await {
             Ok(text) => text,
@@ -254,7 +426,7 @@ pub async fn course_import(db: State<'_, Db>, github_url: String) -> Result<Impo
         });
     }
 
-    let dest = courses_dir().join(format!("{owner}--{repo}"));
+    let dest = courses_dir().join(&id);
     if dest.exists() {
         std::fs::remove_dir_all(&dest)
             .map_err(|e| format!("Failed to clean existing directory: {e}"))?;
@@ -262,25 +434,22 @@ pub async fn course_import(db: State<'_, Db>, github_url: String) -> Result<Impo
     std::fs::create_dir_all(&dest)
         .map_err(|e| format!("Failed to create course directory: {e}"))?;
 
-    let clone_url = format!("https://github.com/{owner}/{repo}.git");
-    let output = Command::new("git")
-        .args([
-            "clone",
-            "--depth",
-            "1",
-            &clone_url,
-            dest.to_str().unwrap_or(""),
-        ])
-        .output()
-        .map_err(|e| format!("Failed to run git: {e}"))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Ok(ImportResult::CloneFailed {
-            reason: stderr.to_string(),
-        });
+    match &source {
+        CourseSource::GitHub { owner, repo, branch, path } => {
+            if let Err(e) = download_github_tarball(owner, repo, branch, path, &dest) {
+                let _ = std::fs::remove_dir_all(&dest);
+                return Ok(ImportResult::DownloadFailed { reason: e });
+            }
+        }
+        CourseSource::Http { base_url, .. } => {
+            if let Err(e) = download_http_course(base_url, &manifest_text, &manifest, &dest) {
+                let _ = std::fs::remove_dir_all(&dest);
+                return Ok(ImportResult::DownloadFailed { reason: e });
+            }
+        }
     }
 
+    let url_for_db = canonical_source_url(&source);
     let local_path = dest.to_string_lossy().to_string();
     let now = now_ms();
     let step_count = manifest.steps.len() as i64;
@@ -291,9 +460,9 @@ pub async fn course_import(db: State<'_, Db>, github_url: String) -> Result<Impo
     {
         let conn = db.0.lock();
         conn.execute(
-            "INSERT INTO course (id, github_url, local_path, title, description, step_count, added_at)
+            "INSERT INTO course (id, source_url, local_path, title, description, step_count, added_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![&id, &github_url, &local_path, &title, &description, step_count, now],
+            params![&id, &url_for_db, &local_path, &title, &description, step_count, now],
         )
         .map_err(|e| format!("Failed to insert course: {e}"))?;
 
@@ -316,7 +485,7 @@ pub async fn course_list(db: State<'_, Db>) -> Result<Vec<CourseRecord>, String>
     let conn = db.0.lock();
     let mut stmt = conn
         .prepare(
-            "SELECT c.id, c.github_url, c.local_path, c.title, c.description,
+            "SELECT c.id, c.source_url, c.local_path, c.title, c.description,
                     c.step_count, c.added_at, count(sc.step_index) as completed
              FROM course c
              LEFT JOIN step_completion sc ON sc.course_id = c.id
@@ -329,7 +498,7 @@ pub async fn course_list(db: State<'_, Db>) -> Result<Vec<CourseRecord>, String>
         .query_map([], |row| {
             Ok(CourseRecord {
                 id: row.get(0)?,
-                github_url: row.get(1)?,
+                source_url: row.get(1)?,
                 local_path: row.get(2)?,
                 title: row.get(3)?,
                 description: row.get(4)?,
@@ -430,10 +599,9 @@ pub async fn course_by_tag(db: State<'_, Db>, tag: String) -> Result<Vec<CourseR
 }
 
 #[tauri::command]
-pub async fn course_delete(db: State<'_, Db>, id: String) -> Result<(), String> {
+pub async fn course_delete(db: State<'_, Db>, id: String, delete_workspaces: bool) -> Result<(), String> {
     let conn = db.0.lock();
 
-    // Grab path before deletion cascades the row away
     let local_path: Option<String> = conn
         .query_row(
             "SELECT local_path FROM course WHERE id = ?1",
@@ -445,9 +613,15 @@ pub async fn course_delete(db: State<'_, Db>, id: String) -> Result<(), String> 
     conn.execute("DELETE FROM course WHERE id = ?1", params![&id])
         .map_err(|e| format!("Failed to delete course: {e}"))?;
 
-    // Best-effort filesystem cleanup — not critical if it fails
     if let Some(path) = local_path {
         let _ = std::fs::remove_dir_all(&path);
+    }
+
+    if delete_workspaces {
+        let ws = workspaces_dir().join(&id);
+        if ws.exists() {
+            let _ = std::fs::remove_dir_all(&ws);
+        }
     }
 
     Ok(())
@@ -759,6 +933,11 @@ pub async fn course_read_lab(
     let scaffold_dir = lab_dir.join("scaffold");
     let has_scaffold = scaffold_dir.is_dir();
     let scaffold_path = scaffold_dir.to_string_lossy().to_string();
+
+    let solution_dir = lab_dir.join("solution");
+    let has_solution = solution_dir.is_dir();
+    let solution_path = solution_dir.to_string_lossy().to_string();
+
     let lab_dir_path = lab_dir.to_string_lossy().to_string();
 
     let workspace_path = workspaces_dir().join(&id);
@@ -770,6 +949,8 @@ pub async fn course_read_lab(
         instructions,
         has_scaffold,
         scaffold_path,
+        has_solution,
+        solution_path,
         lab_dir_path,
         workspace_path,
         config,
@@ -859,7 +1040,7 @@ pub async fn course_sync(db: State<'_, Db>) -> Result<SyncResult, String> {
 
         let dirname = entry.file_name().to_string_lossy().to_string();
         let synthetic_url = format!("local://{dirname}");
-        let id = course_id(&synthetic_url);
+        let id = hash_id(&synthetic_url);
         let now = now_ms();
         let step_count = manifest.steps.len() as i64;
 
@@ -878,7 +1059,7 @@ pub async fn course_sync(db: State<'_, Db>) -> Result<SyncResult, String> {
         }
 
         if let Err(e) = conn.execute(
-            "INSERT INTO course (id, github_url, local_path, title, description, step_count, added_at)
+            "INSERT INTO course (id, source_url, local_path, title, description, step_count, added_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             params![&id, &synthetic_url, &local_path, &manifest.title, &manifest.description, step_count, now],
         ) {

@@ -1,9 +1,0 @@
-title: "Dijkstra's Algorithm"
-description: "How Dijkstra's algorithm finds the shortest path in weighted graphs"
-tags:
-  - algorithms
-  - graphs
-steps:
-  - kind: lesson
-    title: "How Dijkstra's Algorithm Finds the Shortest Path"
-    path: steps/

@@ -18,6 +18,7 @@ type EditorProps = {
   readonly content: string;
   readonly ext: string;
   readonly gitChanges: readonly LineChange[];
+  readonly readOnly?: boolean | undefined;
   readonly onSave: (content: string) => void;
   readonly onChange: (content: string) => void;
   readonly onOpenFile?: ((path: string, line: number, column: number) => void) | undefined;
@@ -159,6 +160,7 @@ export function Editor({
   content,
   ext,
   gitChanges,
+  readOnly = false,
   onSave,
   onChange,
   onOpenFile,
@@ -191,6 +193,7 @@ export function Editor({
     const editor = monaco.editor.create(container, {
       model,
       theme: "handhold-dark",
+      readOnly,
       fontSize,
       tabSize,
       lineNumbers: lineNumbersOption(lineNumbersMode),
@@ -321,7 +324,7 @@ export function Editor({
       editorRef.current = null;
       onViewDestroyed?.();
     };
-  }, [ext, vimMode, ligatures, wordWrap, lineNumbersMode, bracketColors, minimap, stickyScroll, fontSize, tabSize]); // eslint-disable-line react-hooks/exhaustive-deps -- content is initial value
+  }, [ext, readOnly, vimMode, ligatures, wordWrap, lineNumbersMode, bracketColors, minimap, stickyScroll, fontSize, tabSize]); // eslint-disable-line react-hooks/exhaustive-deps -- content is initial value
 
   // Push git diff markers as gutter decorations
   useEffect(() => {

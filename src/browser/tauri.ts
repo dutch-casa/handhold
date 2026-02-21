@@ -4,8 +4,8 @@ import type { CourseRecord, CourseManifest, ImportResult, LabData, Route, SlideP
 type WatchEvent = { readonly event: "changed" };
 type Disposable = { dispose: () => void };
 
-export const courseImport = (githubUrl: string) =>
-  invoke<ImportResult>("course_import", { githubUrl });
+export const courseImport = (sourceUrl: string) =>
+  invoke<ImportResult>("course_import", { sourceUrl });
 
 export const courseList = () =>
   invoke<readonly CourseRecord[]>("course_list");
@@ -19,8 +19,8 @@ export const courseTags = () =>
 export const courseByTag = (tag: string) =>
   invoke<readonly CourseRecord[]>("course_by_tag", { tag });
 
-export const courseDelete = (id: string) =>
-  invoke<void>("course_delete", { id });
+export const courseDelete = (id: string, deleteWorkspaces: boolean) =>
+  invoke<void>("course_delete", { id, deleteWorkspaces });
 
 export const stepComplete = (courseId: string, stepIndex: number) =>
   invoke<void>("step_complete", { courseId, stepIndex });

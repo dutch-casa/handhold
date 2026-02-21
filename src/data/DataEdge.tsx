@@ -7,6 +7,8 @@ type DataEdgeProps = {
   readonly flowing?: boolean;
   readonly tracing?: boolean;
   readonly drawing?: boolean;
+  readonly exiting?: boolean;
+  readonly prevEdge?: PositionedEdge | undefined;
 };
 
 const ARROW_SIZE = 6;
@@ -31,7 +33,7 @@ const DRAW_TRANSITION = {
   strokeWidth: fade,
 };
 
-export function DataEdge({ edge, flowing = false, tracing = false, drawing = false }: DataEdgeProps) {
+export function DataEdge({ edge, flowing = false, tracing = false, drawing = false, exiting = false, prevEdge }: DataEdgeProps) {
   const dx = edge.x2 - edge.x1;
   const dy = edge.y2 - edge.y1;
   const len = Math.sqrt(dx * dx + dy * dy);
@@ -49,12 +51,38 @@ export function DataEdge({ edge, flowing = false, tracing = false, drawing = fal
   const baseY = endY - uy * ARROW_SIZE;
   const arrowPts = `${endX},${endY} ${baseX + perpX * hw},${baseY + perpY * hw} ${baseX - perpX * hw},${baseY - perpY * hw}`;
 
-  const lineProps = { x1: edge.x1, y1: edge.y1, x2: endX, y2: endY };
+  // Reverse arrowhead for bidirectional edges
+  const startX = edge.x1 + ux * ARROW_SIZE;
+  const startY = edge.y1 + uy * ARROW_SIZE;
+  const revBaseX = startX + ux * ARROW_SIZE;
+  const revBaseY = startY + uy * ARROW_SIZE;
+  const revArrowPts = `${startX},${startY} ${revBaseX + perpX * hw},${revBaseY + perpY * hw} ${revBaseX - perpX * hw},${revBaseY - perpY * hw}`;
+
+  const lineStart = edge.bidirectional ? { x1: startX, y1: startY } : { x1: edge.x1, y1: edge.y1 };
+  const lineProps = { ...lineStart, x2: endX, y2: endY };
+
+  // Use previous edge positions as initial for spring interpolation
+  const prevLineProps = prevEdge
+    ? (() => {
+        const pdx = prevEdge.x2 - prevEdge.x1;
+        const pdy = prevEdge.y2 - prevEdge.y1;
+        const plen = Math.sqrt(pdx * pdx + pdy * pdy);
+        if (plen === 0) return lineProps;
+        const pux = pdx / plen;
+        const puy = pdy / plen;
+        const pEndX = prevEdge.x2 - pux * ARROW_SIZE;
+        const pEndY = prevEdge.y2 - puy * ARROW_SIZE;
+        return { x1: prevEdge.x1, y1: prevEdge.y1, x2: pEndX, y2: pEndY };
+      })()
+    : lineProps;
 
   const midX = (edge.x1 + edge.x2) / 2;
   const midY = (edge.y1 + edge.y2) / 2;
 
   const edgeLen = Math.sqrt((endX - edge.x1) ** 2 + (endY - edge.y1) ** 2);
+
+  // Resolve style to stroke dash
+  const styleDash = edge.style === "dashed" ? "6 4" : "none";
 
   if (drawing) {
     return (
@@ -77,6 +105,13 @@ export function DataEdge({ edge, flowing = false, tracing = false, drawing = fal
           animate={{ points: arrowPts, fill: colors.accent, opacity: 1, scale: 1 }}
           transition={{ delay: 0.5, ...fade }}
         />
+        {edge.bidirectional && (
+          <motion.polygon
+            initial={{ points: revArrowPts, fill: colors.accent, opacity: 0, scale: 0 }}
+            animate={{ points: revArrowPts, fill: colors.accent, opacity: 1, scale: 1 }}
+            transition={{ delay: 0.5, ...fade }}
+          />
+        )}
       </motion.g>
     );
   }
@@ -87,7 +122,7 @@ export function DataEdge({ edge, flowing = false, tracing = false, drawing = fal
       ? colors.secondary
       : colors.textMuted;
   const strokeWidth = tracing ? 2.2 : flowing ? 2 : 1.5;
-  const dashArray = tracing ? "6 4" : flowing ? "8 4" : "none";
+  const dashArray = tracing ? "6 4" : flowing ? "8 4" : styleDash;
   const dashOffset = tracing ? [0, -24] : flowing ? [0, -20] : 0;
   const transition = tracing
     ? TRACE_STROKE_TRANSITION
@@ -97,12 +132,25 @@ export function DataEdge({ edge, flowing = false, tracing = false, drawing = fal
 
   return (
     <motion.g
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
+      initial={{ opacity: exiting ? 1 : 0 }}
+      animate={{ opacity: exiting ? 0 : 1 }}
+      exit={{ opacity: 0 }}
       transition={fade}
     >
+      {/* Double-line effect for "double" style */}
+      {edge.style === "double" && (
+        <motion.line
+          initial={prevLineProps}
+          animate={{
+            ...lineProps,
+            stroke: colors.bg,
+            strokeWidth: strokeWidth + 4,
+          }}
+          transition={spring}
+        />
+      )}
       <motion.line
-        initial={lineProps}
+        initial={prevLineProps}
         animate={{
           ...lineProps,
           stroke: strokeColor,
@@ -117,6 +165,13 @@ export function DataEdge({ edge, flowing = false, tracing = false, drawing = fal
         animate={{ points: arrowPts, fill: strokeColor }}
         transition={spring}
       />
+      {edge.bidirectional && (
+        <motion.polygon
+          initial={{ points: revArrowPts }}
+          animate={{ points: revArrowPts, fill: strokeColor }}
+          transition={spring}
+        />
+      )}
       {edge.label && (
         <g>
           <rect
