@@ -1,11 +1,10 @@
 import type { GraphData } from "@/types/lesson";
 import type { Layout, PositionedNode, PositionedEdge, PositionedPointer } from "../layout-types";
+import { measureCellWidth } from "./measure";
 
 // Fruchterman-Reingold force-directed layout.
 // Pure TypeScript — sufficient for small lesson graphs.
 
-const NODE_R = 22;
-const NODE_D = NODE_R * 2;
 const PAD = 32;
 const POINTER_OFFSET_Y = 36;
 
@@ -22,6 +21,11 @@ export function layoutForce(data: GraphData): Layout {
   if (data.nodes.length === 0) {
     return { nodes: [], edges: [], pointers: [], width: 0, height: 0 };
   }
+
+  const maxValueW = Math.max(...data.nodes.map((n) => measureCellWidth(n.value, 44)));
+  const NODE_R = Math.max(22, Math.ceil(maxValueW / 2));
+  const NODE_D = NODE_R * 2;
+
   if (data.nodes.length === 1) {
     const def = data.nodes[0]!;
     return {
@@ -34,13 +38,13 @@ export function layoutForce(data: GraphData): Layout {
   }
 
   const n = data.nodes.length;
-  const area = (n * 80) ** 2;
+  const area = (n * 50) ** 2;
   const k = Math.sqrt(area / n);
 
   // Initialize positions on a circle to avoid degenerate start
   const xs = new Float64Array(n);
   const ys = new Float64Array(n);
-  const initR = k * 1.5;
+  const initR = Math.min(k * 1.5, 200);
   for (let i = 0; i < n; i++) {
     const angle = (2 * Math.PI * i) / n;
     xs[i] = 200 + initR * Math.cos(angle);

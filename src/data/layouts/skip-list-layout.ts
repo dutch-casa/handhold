@@ -1,13 +1,13 @@
 import type { SkipListData } from "@/types/lesson";
 import type { Layout, PositionedNode, PositionedEdge, PositionedPointer } from "../layout-types";
+import { measureCellWidth } from "./measure";
 
 // Stacked horizontal rows. Same node at multiple levels vertically aligned.
 // Dashed vertical edges connecting same-id nodes across levels.
 
-const NODE_W = 52;
 const NODE_H = 36;
-const H_GAP = 40;
-const V_GAP = 48;
+const H_GAP = 32;
+const V_GAP = 40;
 const PAD = 24;
 const POINTER_OFFSET_Y = 36;
 
@@ -15,6 +15,11 @@ export function layoutSkipList(data: SkipListData): Layout {
   if (data.levels.length === 0) {
     return { nodes: [], edges: [], pointers: [], width: 0, height: 0 };
   }
+
+  // Uniform node width from max content across all nodes
+  const nodeW = data.nodes.length > 0
+    ? Math.max(...data.nodes.map((n) => measureCellWidth(n.value, 52)))
+    : 52;
 
   // Collect all unique node IDs to determine horizontal positions
   // The bottom level (lowest number) has all nodes — use it for ordering
@@ -24,7 +29,7 @@ export function layoutSkipList(data: SkipListData): Layout {
   let x = PAD;
   for (const id of nodeOrder) {
     xPositions.set(id, x);
-    x += NODE_W + H_GAP;
+    x += nodeW + H_GAP;
   }
 
   const nodes: PositionedNode[] = [];
@@ -49,12 +54,12 @@ export function layoutSkipList(data: SkipListData): Layout {
         value: data.nodes.find((n) => n.id === nodeId)?.value ?? nodeId,
         x: nodeX,
         y,
-        width: NODE_W,
+        width: nodeW,
         height: NODE_H,
       };
       nodes.push(positioned);
       nodePositions.set(posId, positioned);
-      levelNodePos.set(`${level.level}:${nodeId}`, { x: nodeX + NODE_W / 2, y: y + NODE_H / 2 });
+      levelNodePos.set(`${level.level}:${nodeId}`, { x: nodeX + nodeW / 2, y: y + NODE_H / 2 });
 
       // Horizontal edge to next node in same level
       const nextId = level.nodeIds[ni + 1];
@@ -62,7 +67,7 @@ export function layoutSkipList(data: SkipListData): Layout {
         const nextX = xPositions.get(nextId) ?? PAD;
         edges.push({
           id: `${posId}->${nextId}@L${level.level}`,
-          x1: nodeX + NODE_W,
+          x1: nodeX + nodeW,
           y1: y + NODE_H / 2,
           x2: nextX,
           y2: y + NODE_H / 2,
@@ -99,7 +104,7 @@ export function layoutSkipList(data: SkipListData): Layout {
     const targetX = xPositions.get(p.targetId) ?? PAD;
     return {
       name: p.name,
-      x: targetX + NODE_W / 2,
+      x: targetX + nodeW / 2,
       y: PAD + data.levels.length * V_GAP + POINTER_OFFSET_Y,
     };
   });

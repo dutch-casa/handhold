@@ -1,10 +1,10 @@
 import type { QueueData, DequeData } from "@/types/lesson";
 import type { Layout, PositionedNode, PositionedEdge, PositionedPointer } from "../layout-types";
 import { arrayNodeIds } from "../array-ids";
+import { measureCellWidth } from "./measure";
 
 // Horizontal row with front/rear indicators.
 
-const CELL_W = 64;
 const CELL_H = 44;
 const GAP = 8;
 const PAD = 24;
@@ -17,21 +17,23 @@ export function layoutQueue(data: QueueData | DequeData): Layout {
   }
 
   const ids = arrayNodeIds(data.values);
+  const widths = data.values.map((v) => measureCellWidth(String(v), 64));
   const nodes: PositionedNode[] = [];
   const edges: PositionedEdge[] = [];
 
   let x = PAD;
   for (let i = 0; i < data.values.length; i++) {
     const value = data.values[i] ?? "";
+    const cellW = widths[i] ?? 64;
     nodes.push({
       id: ids[i] ?? String(i),
       value,
       x,
       y: PAD,
-      width: CELL_W,
+      width: cellW,
       height: CELL_H,
     });
-    x += CELL_W + GAP;
+    x += cellW + GAP;
   }
 
   // Front/rear pointers

@@ -1,10 +1,10 @@
 import type { LsmTreeData } from "@/types/lesson";
 import type { Layout, PositionedNode, PositionedEdge, PositionedPointer } from "../layout-types";
+import { measureCellWidth } from "./measure";
 
 // Vertical stack: memtable at top, levels below.
 // Each level contains one or more sorted runs (horizontal arrays).
 
-const CELL_W = 48;
 const CELL_H = 36;
 const CELL_GAP = 2;
 const RUN_GAP = 16;
@@ -22,16 +22,17 @@ export function layoutLsmTree(data: LsmTreeData): Layout {
     let x = PAD;
     for (let i = 0; i < data.memtable.length; i++) {
       const value = data.memtable[i] ?? "";
+      const cellW = measureCellWidth(value, 48);
       nodes.push({
         id: `mem-${i}`,
         value,
         x,
         y,
-        width: CELL_W,
+        width: cellW,
         height: CELL_H,
         marker: "active-bit",
       });
-      x += CELL_W + CELL_GAP;
+      x += cellW + CELL_GAP;
     }
     y += CELL_H + LEVEL_GAP;
   }
@@ -48,22 +49,28 @@ export function layoutLsmTree(data: LsmTreeData): Layout {
 
       for (let ci = 0; ci < run.length; ci++) {
         const value = run[ci] ?? "";
+        const cellW = measureCellWidth(value, 48);
         nodes.push({
           id: `${level.name}-r${ri}-${ci}`,
           value,
           x,
           y,
-          width: CELL_W,
+          width: cellW,
           height: CELL_H,
         });
-        x += CELL_W + CELL_GAP;
+        x += cellW + CELL_GAP;
       }
       x += RUN_GAP;
     }
 
-    // Flush/compaction arrow from level above
+    // Flush/compaction arrow — use actual node positions for midpoint
     if (li === 0 && data.memtable.length > 0) {
-      const memMidX = PAD + (data.memtable.length * (CELL_W + CELL_GAP)) / 2;
+      const memNodes = nodes.filter((n) => n.id.startsWith("mem-"));
+      const firstMem = memNodes[0];
+      const lastMem = memNodes[memNodes.length - 1];
+      const memMidX = firstMem && lastMem
+        ? (firstMem.x + lastMem.x + lastMem.width) / 2
+        : PAD;
       edges.push({
         id: "flush-arrow",
         x1: memMidX,
@@ -76,8 +83,12 @@ export function layoutLsmTree(data: LsmTreeData): Layout {
     } else if (li > 0) {
       const prevLevel = data.levels[li - 1];
       if (prevLevel) {
-        const prevRunCells = prevLevel.runs.reduce((sum, r) => sum + r.length, 0);
-        const midX = PAD + (prevRunCells * (CELL_W + CELL_GAP)) / 2;
+        const prevNodes = nodes.filter((n) => n.id.startsWith(`${prevLevel.name}-`));
+        const firstPrev = prevNodes[0];
+        const lastPrev = prevNodes[prevNodes.length - 1];
+        const midX = firstPrev && lastPrev
+          ? (firstPrev.x + lastPrev.x + lastPrev.width) / 2
+          : PAD;
         edges.push({
           id: `compact-${li}`,
           x1: midX,

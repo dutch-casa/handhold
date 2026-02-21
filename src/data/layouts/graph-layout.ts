@@ -1,10 +1,9 @@
 import type { GraphData } from "@/types/lesson";
 import type { Layout, PositionedNode, PositionedEdge, PositionedPointer } from "../layout-types";
+import { measureCellWidth } from "./measure";
 
 // Circular layout: nodes evenly spaced on a ring, straight edges between them.
 
-const NODE_R = 22;
-const NODE_D = NODE_R * 2;
 const RING_RADIUS = 100;
 const PAD = 32;
 const POINTER_OFFSET_Y = 36;
@@ -13,6 +12,10 @@ export function layoutGraph(data: GraphData): Layout {
   if (data.nodes.length === 0) {
     return { nodes: [], edges: [], pointers: [], width: 0, height: 0 };
   }
+
+  const maxValueW = Math.max(...data.nodes.map((n) => measureCellWidth(n.value, 44)));
+  const NODE_R = Math.max(22, Math.ceil(maxValueW / 2));
+  const NODE_D = NODE_R * 2;
 
   // Single node: center it
   if (data.nodes.length === 1) {

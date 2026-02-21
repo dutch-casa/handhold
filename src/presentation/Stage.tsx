@@ -61,6 +61,7 @@ function SlotLayer({
     <div
       style={{
         display: "flex",
+        justifyContent: "center",
         gap: spacing.lg,
         alignItems: "flex-start",
       }}

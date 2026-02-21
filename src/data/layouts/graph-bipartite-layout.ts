@@ -1,11 +1,10 @@
 import type { GraphData } from "@/types/lesson";
 import type { Layout, PositionedNode, PositionedEdge, PositionedPointer } from "../layout-types";
+import { measureCellWidth } from "./measure";
 
 // Bipartite layout: two-coloring via BFS, left/right columns.
 // Falls back to alternating assignment if the graph isn't bipartite.
 
-const NODE_W = 44;
-const NODE_H = 44;
 const COL_GAP = 160;
 const V_GAP = 24;
 const PAD = 32;
@@ -15,6 +14,10 @@ export function layoutBipartite(data: GraphData): Layout {
   if (data.nodes.length === 0) {
     return { nodes: [], edges: [], pointers: [], width: 0, height: 0 };
   }
+
+  const maxValueW = Math.max(...data.nodes.map((n) => measureCellWidth(n.value, 44)));
+  const NODE_W = Math.max(44, Math.ceil(maxValueW / 2) * 2);
+  const NODE_H = NODE_W;
 
   // Two-color via BFS
   const color = new Map<string, 0 | 1>();

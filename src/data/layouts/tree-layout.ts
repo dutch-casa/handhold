@@ -1,9 +1,8 @@
 import type { TreeData, TreeNodeDef } from "@/types/lesson";
 import type { Layout, PositionedNode, PositionedEdge, PositionedPointer } from "../layout-types";
+import { measureCellWidth } from "./measure";
 
-const NODE_R = 22;
-const NODE_D = NODE_R * 2;
-const V_GAP = 56;
+const LEVEL_GAP = 8;
 const H_GAP = 24;
 const PAD = 24;
 const POINTER_OFFSET_Y = 36;
@@ -16,6 +15,12 @@ export function layoutNaryTree(data: TreeData): Layout {
   if (data.nodes.length === 0) {
     return { nodes: [], edges: [], pointers: [], width: 0, height: 0 };
   }
+
+  const maxValueW = data.nodes.length > 0
+    ? Math.max(...data.nodes.map((n) => measureCellWidth(n.value, 44)))
+    : 44;
+  const NODE_R = Math.max(22, Math.ceil(maxValueW / 2));
+  const NODE_D = NODE_R * 2;
 
   const nodeMap = new Map<string, TreeNodeDef>();
   for (const n of data.nodes) nodeMap.set(n.id, n);
@@ -52,7 +57,7 @@ export function layoutNaryTree(data: TreeData): Layout {
     if (!node) return;
 
     const x = bandLeft + bandWidth / 2 - NODE_R;
-    const y = PAD + depth * V_GAP;
+    const y = PAD + depth * (NODE_D + LEVEL_GAP);
     const marker = resolveMarker(data.variant, node.annotation);
 
     const pos: PositionedNode = {

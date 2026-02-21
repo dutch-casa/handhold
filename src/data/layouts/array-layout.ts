@@ -1,32 +1,25 @@
 import type { ArrayData } from "@/types/lesson";
 import type { Layout, PositionedNode, PositionedPointer } from "../layout-types";
 import { arrayNodeIds } from "../array-ids";
+import { measureCellWidth } from "./measure";
 
 // Layout: horizontal row with per-cell width (content-aware).
 // Pointers sit below their target cell.
 
-const MIN_CELL_W = 56;
-const MAX_CELL_W = 220;
 const CELL_H = 44;
 const GAP = 8;
-const CHAR_W = 8;
-const CELL_PADDING_X = 16;
 const POINTER_OFFSET_Y = 32;
 const PAD = 16;
 
 export function layoutArray(data: ArrayData): Layout {
   const ids = arrayNodeIds(data.values);
-  const widths = data.values.map((value) => {
-    const content = String(value);
-    const contentW = content.length * CHAR_W + CELL_PADDING_X * 2;
-    return Math.min(MAX_CELL_W, Math.max(MIN_CELL_W, contentW));
-  });
+  const widths = data.values.map((value) => measureCellWidth(String(value), 56));
 
   const nodes: PositionedNode[] = [];
   let x = PAD;
   for (let i = 0; i < data.values.length; i++) {
     const value = data.values[i] ?? "";
-    const width = widths[i] ?? MIN_CELL_W;
+    const width = widths[i] ?? 56;
     nodes.push({
       id: ids[i] ?? String(i),
       value,

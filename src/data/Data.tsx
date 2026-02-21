@@ -105,14 +105,18 @@ export function Data({ state, prevState, focus, flow, pulse, trace, draw, pan, a
     [pan, state],
   );
 
-  // Only show the last annotation per node (single annotation constraint)
+  // Dedup annotations by resolved node ID — multiple annotations targeting
+  // the same node via different region names collapse to the latest one
   const dedupedAnnotations = useMemo(() => {
-    const byTarget = new Map<string, SceneAnnotation>();
+    const byNodeId = new Map<string, SceneAnnotation>();
     for (const anno of annotations) {
-      byTarget.set(anno.target, anno);
+      const nodeId = resolveDataRegion(anno.target, state)[0];
+      if (nodeId) {
+        byNodeId.set(nodeId, anno);
+      }
     }
-    return [...byTarget.values()];
-  }, [annotations]);
+    return [...byNodeId.values()];
+  }, [annotations, state]);
 
   const VIEW_PAD_X = 16;
   const VIEW_PAD_TOP = 28;

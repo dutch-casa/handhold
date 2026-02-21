@@ -1,24 +1,32 @@
 import type { UnionFindData } from "@/types/lesson";
 import type { Layout, PositionedNode, PositionedEdge, PositionedPointer } from "../layout-types";
+import { measureCellWidth } from "./measure";
 
 // Dual view: parent array on top (horizontal cells with upward arrows),
 // forest below (tree layout for each connected component, side-by-side).
 
-const CELL_W = 48;
 const CELL_H = 36;
-const CELL_GAP = 4;
-const NODE_R = 20;
-const NODE_D = NODE_R * 2;
+const CELL_GAP = 8;
 const TREE_H_GAP = 24;
 const TREE_V_GAP = 48;
 const PAD = 24;
-const FOREST_OFFSET_Y = 100;
 const POINTER_OFFSET_Y = 36;
 
 export function layoutUnionFind(data: UnionFindData): Layout {
   if (data.elements.length === 0) {
     return { nodes: [], edges: [], pointers: [], width: 0, height: 0 };
   }
+
+  // Content-aware sizing
+  const cellW = data.elements.length > 0
+    ? Math.max(48, ...data.elements.map((e) => measureCellWidth(String(e), 48)))
+    : 48;
+  const maxElW = data.elements.length > 0
+    ? Math.max(40, ...data.elements.map((e) => measureCellWidth(String(e), 40)))
+    : 40;
+  const NODE_R = Math.max(20, Math.ceil(maxElW / 2));
+  const NODE_D = NODE_R * 2;
+  const forestOffsetY = PAD + CELL_H + 40;
 
   const nodes: PositionedNode[] = [];
   const edges: PositionedEdge[] = [];
@@ -32,9 +40,9 @@ export function layoutUnionFind(data: UnionFindData): Layout {
     nodes.push({
       id: `arr-${i}`,
       value: el,
-      x: PAD + i * (CELL_W + CELL_GAP),
+      x: PAD + i * (cellW + CELL_GAP),
       y: PAD,
-      width: CELL_W,
+      width: cellW,
       height: CELL_H,
       secondaryValue: `p:${parentIdx} r:${rankVal}`,
     });
@@ -73,6 +81,7 @@ export function layoutUnionFind(data: UnionFindData): Layout {
     return total;
   }
 
+  const posMap = new Map<string, PositionedNode>();
   let forestX = PAD;
 
   for (const rootIdx of roots) {
@@ -81,10 +90,10 @@ export function layoutUnionFind(data: UnionFindData): Layout {
     function placeNode(idx: number, bandLeft: number, bandWidth: number, depth: number): void {
       const el = data.elements[idx] ?? "";
       const x = bandLeft + bandWidth / 2 - NODE_R;
-      const y = FOREST_OFFSET_Y + depth * TREE_V_GAP;
+      const y = forestOffsetY + depth * TREE_V_GAP;
 
       const nodeId = `forest-${idx}`;
-      nodes.push({
+      const pos: PositionedNode = {
         id: nodeId,
         value: el,
         x,
@@ -92,7 +101,9 @@ export function layoutUnionFind(data: UnionFindData): Layout {
         width: NODE_D,
         height: NODE_D,
         shape: "circle",
-      });
+      };
+      nodes.push(pos);
+      posMap.set(nodeId, pos);
 
       const children = childrenOf.get(idx) ?? [];
       let childX = bandLeft + (bandWidth - (subtreeW.get(idx) ?? NODE_D)) / 2;
@@ -102,13 +113,12 @@ export function layoutUnionFind(data: UnionFindData): Layout {
         placeNode(c, childX, cw, depth + 1);
 
         const childNodeId = `forest-${c}`;
-        const parentNode = nodes.find((n) => n.id === nodeId);
-        const childNode = nodes.find((n) => n.id === childNodeId);
-        if (parentNode && childNode) {
+        const childNode = posMap.get(childNodeId);
+        if (childNode) {
           edges.push({
             id: `${nodeId}->${childNodeId}`,
-            x1: parentNode.x + NODE_R,
-            y1: parentNode.y + NODE_D,
+            x1: pos.x + NODE_R,
+            y1: pos.y + NODE_D,
             x2: childNode.x + NODE_R,
             y2: childNode.y,
           });
@@ -122,8 +132,11 @@ export function layoutUnionFind(data: UnionFindData): Layout {
     forestX += treeWidth + TREE_H_GAP * 2;
   }
 
+  // Build full lookup for pointer resolution
+  for (const n of nodes) posMap.set(n.id, n);
+
   const pointers: PositionedPointer[] = data.pointers.map((p) => {
-    const target = nodes.find((n) => n.id === `forest-${p.targetId}` || n.id === `arr-${p.targetId}`);
+    const target = posMap.get(`forest-${p.targetId}`) ?? posMap.get(`arr-${p.targetId}`);
     return {
       name: p.name,
       x: target ? target.x + target.width / 2 : PAD,

@@ -1,11 +1,10 @@
 import type { FibonacciHeapData, TreeNodeDef } from "@/types/lesson";
 import type { Layout, PositionedNode, PositionedEdge, PositionedPointer } from "../layout-types";
+import { measureCellWidth } from "./measure";
 
 // Multiple trees arranged horizontally. Root nodes connected by a doubly-linked chain.
 // Min pointer arrow from above. Marked nodes get dashed border.
 
-const NODE_R = 20;
-const NODE_D = NODE_R * 2;
 const V_GAP = 48;
 const H_GAP = 20;
 const TREE_GAP = 40;
@@ -17,8 +16,17 @@ export function layoutFibonacciHeap(data: FibonacciHeapData): Layout {
     return { nodes: [], edges: [], pointers: [], width: 0, height: 0 };
   }
 
+  // Uniform node radius from max content across all tree nodes
+  const allValues = data.trees.flatMap((t) => t.nodes.map((n) => n.value));
+  const maxValueW = allValues.length > 0
+    ? Math.max(...allValues.map((v) => measureCellWidth(v, 40)))
+    : 40;
+  const NODE_R = Math.max(20, Math.ceil(maxValueW / 2));
+  const NODE_D = NODE_R * 2;
+
   const nodes: PositionedNode[] = [];
   const edges: PositionedEdge[] = [];
+  const posMap = new Map<string, PositionedNode>();
   const markedSet = new Set(data.markedIds);
   const rootPositions: PositionedNode[] = [];
   let treeX = PAD;
@@ -67,6 +75,7 @@ export function layoutFibonacciHeap(data: FibonacciHeapData): Layout {
         marker: isMarked ? "marked" : undefined,
       };
       nodes.push(pos);
+      posMap.set(node.id, pos);
 
       if (depth === 0) rootPositions.push(pos);
 
@@ -84,10 +93,10 @@ export function layoutFibonacciHeap(data: FibonacciHeapData): Layout {
 
     // Tree edges
     for (const node of tree.nodes) {
-      const parentPos = nodes.find((n) => n.id === node.id);
+      const parentPos = posMap.get(node.id);
       if (!parentPos) continue;
       for (const childId of node.children) {
-        const childPos = nodes.find((n) => n.id === childId);
+        const childPos = posMap.get(childId);
         if (!childPos) continue;
         edges.push({
           id: `${node.id}->${childId}`,
@@ -120,7 +129,7 @@ export function layoutFibonacciHeap(data: FibonacciHeapData): Layout {
 
   // Min pointer
   const pointers: PositionedPointer[] = [];
-  const minNode = nodes.find((n) => n.id === data.minId);
+  const minNode = posMap.get(data.minId);
   if (minNode) {
     pointers.push({
       name: "min",

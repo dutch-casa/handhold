@@ -1,24 +1,30 @@
 import type { BTreeData, BTreeNodeDef } from "@/types/lesson";
 import type { Layout, PositionedNode, PositionedEdge, PositionedPointer } from "../layout-types";
+import { measureCellWidth } from "./measure";
 
 // Wide-node tree: each node contains multiple keys side by side.
 // Bottom-up subtree width algorithm, same as n-ary tree.
 
-const KEY_W = 40;
 const KEY_PAD = 12;
 const NODE_H = 44;
-const V_GAP = 56;
+const V_GAP = 48;
 const H_GAP = 32;
 const PAD = 24;
 const POINTER_OFFSET_Y = 36;
 
-function nodeWidth(node: BTreeNodeDef): number {
-  return Math.max(KEY_W, node.keys.length * KEY_W + KEY_PAD * 2);
-}
-
 export function layoutBTree(data: BTreeData): Layout {
   if (data.nodes.length === 0) {
     return { nodes: [], edges: [], pointers: [], width: 0, height: 0 };
+  }
+
+  // Uniform key width from max content across all keys in the tree
+  const allKeys = data.nodes.flatMap((n) => n.keys);
+  const keyW = allKeys.length > 0
+    ? Math.max(40, ...allKeys.map((k) => measureCellWidth(k, 40)))
+    : 40;
+
+  function nodeWidth(node: BTreeNodeDef): number {
+    return Math.max(keyW, node.keys.length * keyW + KEY_PAD * 2);
   }
 
   const nodeMap = new Map<string, BTreeNodeDef>();
@@ -79,7 +85,7 @@ export function layoutBTree(data: BTreeData): Layout {
 
     let childX = bandLeft + (bandWidth - (subtreeWidth.get(id) ?? w)) / 2;
     for (const childId of node.children) {
-      const childWidth = subtreeWidth.get(childId) ?? KEY_W;
+      const childWidth = subtreeWidth.get(childId) ?? keyW;
       assignPositions(childId, childX, childWidth, depth + 1);
       childX += childWidth + H_GAP;
     }

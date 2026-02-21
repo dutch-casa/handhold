@@ -1,11 +1,11 @@
 import type { DoublyLinkedListData } from "@/types/lesson";
 import type { Layout, PositionedNode, PositionedEdge, PositionedPointer } from "../layout-types";
+import { measureCellWidth } from "./measure";
 
 // Same horizontal chain as linked-list, but edges are bidirectional.
 
-const NODE_W = 72;
 const NODE_H = 44;
-const H_GAP = 56;
+const H_GAP = 48;
 const PAD = 24;
 const NULL_W = 40;
 const POINTER_OFFSET_Y = 36;
@@ -17,17 +17,18 @@ export function layoutDoublyLinkedList(data: DoublyLinkedListData): Layout {
 
   let x = PAD;
   for (const node of data.nodes) {
+    const nodeW = measureCellWidth(node.value, 72);
     const positioned: PositionedNode = {
       id: node.id,
       value: node.value,
       x,
       y: PAD,
-      width: NODE_W,
+      width: nodeW,
       height: NODE_H,
     };
     nodes.push(positioned);
     nodePositions.set(node.id, positioned);
-    x += NODE_W + H_GAP;
+    x += nodeW + H_GAP;
   }
 
   // Bidirectional edges

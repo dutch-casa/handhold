@@ -1,14 +1,14 @@
 import type { HashMapData } from "@/types/lesson";
 import type { Layout, PositionedNode, PositionedEdge, PositionedPointer } from "../layout-types";
+import { measureCellWidth } from "./measure";
 
 // Vertical bucket column on left with horizontal chains extending right.
 
 const BUCKET_W = 40;
 const BUCKET_H = 44;
-const NODE_W = 72;
 const NODE_H = 44;
-const H_GAP = 40;
-const V_GAP = 8;
+const H_GAP = 32;
+const V_GAP = 16;
 const PAD = 24;
 
 export function layoutHashMap(data: HashMapData): Layout {
@@ -37,32 +37,31 @@ export function layoutHashMap(data: HashMapData): Layout {
 
     // Chain nodes extending rightward
     let chainX = PAD + BUCKET_W + H_GAP;
-    let prevId = `bucket-${bucket.index}`;
+    const bucketNode = nodes[nodes.length - 1]!;
+    let prevNode: PositionedNode = bucketNode;
 
     for (const node of bucket.chain) {
-      nodes.push({
+      const nodeW = measureCellWidth(node.value, 72);
+      const positioned: PositionedNode = {
         id: node.id,
         value: node.value,
         x: chainX,
         y: bucketY,
-        width: NODE_W,
+        width: nodeW,
         height: NODE_H,
+      };
+      nodes.push(positioned);
+
+      edges.push({
+        id: `${prevNode.id}->${node.id}`,
+        x1: prevNode.x + prevNode.width,
+        y1: prevNode.y + prevNode.height / 2,
+        x2: chainX,
+        y2: bucketY + NODE_H / 2,
       });
 
-      // Edge from previous (bucket or chain node) to this node
-      const prevNode = nodes.find((n) => n.id === prevId);
-      if (prevNode) {
-        edges.push({
-          id: `${prevId}->${node.id}`,
-          x1: prevNode.x + prevNode.width,
-          y1: prevNode.y + prevNode.height / 2,
-          x2: chainX,
-          y2: bucketY + NODE_H / 2,
-        });
-      }
-
-      prevId = node.id;
-      chainX += NODE_W + H_GAP;
+      prevNode = positioned;
+      chainX += nodeW + H_GAP;
     }
   }
 

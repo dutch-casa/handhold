@@ -1,10 +1,10 @@
 import type { StackData } from "@/types/lesson";
 import type { Layout, PositionedNode, PositionedPointer } from "../layout-types";
 import { arrayNodeIds } from "../array-ids";
+import { measureCellWidth } from "./measure";
 
 // Vertical column: bottom = index 0, top = last element.
 
-const CELL_W = 80;
 const CELL_H = 44;
 const PAD = 24;
 const POINTER_OFFSET_X = -40;
@@ -15,6 +15,7 @@ export function layoutStack(data: StackData): Layout {
   }
 
   const ids = arrayNodeIds(data.values);
+  const cellW = Math.max(...data.values.map((v) => measureCellWidth(String(v), 80)));
   const nodes: PositionedNode[] = [];
 
   // Stack grows upward: index 0 at the bottom, last at top
@@ -26,7 +27,7 @@ export function layoutStack(data: StackData): Layout {
       value,
       x: PAD,
       y: PAD + row * CELL_H,
-      width: CELL_W,
+      width: cellW,
       height: CELL_H,
     });
   }
@@ -42,7 +43,7 @@ export function layoutStack(data: StackData): Layout {
     });
   }
 
-  const totalW = CELL_W + PAD * 2;
+  const totalW = cellW + PAD * 2;
   const totalH = data.values.length * CELL_H + PAD * 2;
 
   return { nodes, edges: [], pointers, width: totalW, height: totalH };

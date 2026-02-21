@@ -1,13 +1,13 @@
 import type { LinkedListData } from "@/types/lesson";
 import type { Layout, PositionedNode, PositionedEdge, PositionedPointer } from "../layout-types";
+import { measureCellWidth } from "./measure";
 
 // Layout: horizontal chain of nodes with arrows between them.
 // Floating groups sit on a row below the main chain.
 // Null terminus rendered as a small box at the end.
 
-const NODE_W = 72;
 const NODE_H = 44;
-const H_GAP = 48;
+const H_GAP = 40;
 const V_GAP = 64;
 const PAD = 24;
 const NULL_W = 40;
@@ -25,35 +25,38 @@ export function layoutLinkedList(data: LinkedListData): Layout {
   // Layout main chain horizontally
   let x = PAD;
   for (const node of mainNodes) {
+    const nodeW = measureCellWidth(node.value, 72);
     const positioned: PositionedNode = {
       id: node.id,
       value: node.value,
       x,
       y: PAD,
-      width: NODE_W,
+      width: nodeW,
       height: NODE_H,
     };
     nodes.push(positioned);
     nodePositions.set(node.id, positioned);
-    x += NODE_W + H_GAP;
+    x += nodeW + H_GAP;
   }
 
   // Layout floating groups below main chain
-  let floatX = PAD + NODE_W + H_GAP; // offset slightly from left
+  const firstMain = nodes[0];
+  let floatX = firstMain ? firstMain.x + firstMain.width + H_GAP : PAD;
   const floatY = PAD + NODE_H + V_GAP;
   for (const group of data.floatingGroups) {
     for (const node of group) {
+      const nodeW = measureCellWidth(node.value, 72);
       const positioned: PositionedNode = {
         id: node.id,
         value: node.value,
         x: floatX,
         y: floatY,
-        width: NODE_W,
+        width: nodeW,
         height: NODE_H,
       };
       nodes.push(positioned);
       nodePositions.set(node.id, positioned);
-      floatX += NODE_W + H_GAP;
+      floatX += nodeW + H_GAP;
     }
   }
 

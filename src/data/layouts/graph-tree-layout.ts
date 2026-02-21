@@ -1,11 +1,10 @@
 import type { GraphData } from "@/types/lesson";
 import type { Layout, PositionedNode, PositionedEdge, PositionedPointer } from "../layout-types";
+import { measureCellWidth } from "./measure";
 
 // Tree layout: BFS from first node, level-order positioning.
 // Nodes at same depth are evenly spaced horizontally.
 
-const NODE_W = 44;
-const NODE_H = 44;
 const H_GAP = 24;
 const V_GAP = 60;
 const PAD = 32;
@@ -15,6 +14,10 @@ export function layoutTree(data: GraphData): Layout {
   if (data.nodes.length === 0) {
     return { nodes: [], edges: [], pointers: [], width: 0, height: 0 };
   }
+
+  const maxValueW = Math.max(...data.nodes.map((n) => measureCellWidth(n.value, 44)));
+  const NODE_W = Math.max(44, Math.ceil(maxValueW / 2) * 2);
+  const NODE_H = NODE_W;
 
   // Build adjacency list (directed: from→to, undirected: both ways)
   const adj = new Map<string, string[]>();
