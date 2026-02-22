@@ -2,6 +2,7 @@ import { type ReactNode } from "react";
 import { Layout } from "@/editor/view/Layout";
 import { Toolbar } from "@/editor/view/Toolbar";
 import { EditorProvider } from "@/editor/view/EditorContext";
+import { Sidebar } from "@/editor/view/sidebar/Sidebar";
 
 // ── CourseEditor ──────────────────────────────────────────────────
 // Top-level shell for the course editor. Wires the responsive Layout
@@ -70,11 +71,7 @@ export function CourseEditor({
 }
 
 function DefaultSidebar() {
-  return (
-    <div className="ide-empty-state h-full">
-      <span className="text-ide-xs text-muted-foreground">Steps</span>
-    </div>
-  );
+  return <Sidebar />;
 }
 
 function DefaultCanvas() {
