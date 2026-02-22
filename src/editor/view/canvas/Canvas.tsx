@@ -6,6 +6,7 @@ import { EditorTabs } from "@/editor/view/canvas/EditorTabs";
 import { LabConfigEditor } from "@/editor/view/lab/LabConfigEditor";
 import { LabInstructionsEditor } from "@/editor/view/lab/LabInstructionsEditor";
 import { LabScaffoldTree } from "@/editor/view/lab/LabScaffoldTree";
+import { SourceEditor } from "@/editor/view/canvas/SourceEditor";
 import type { EditorTabTarget } from "@/editor/model/types";
 import { StepOverview } from "@/editor/view/canvas/StepOverview";
 
@@ -51,8 +52,8 @@ function PreviewBlockPlaceholder({ stepId, blockName }: { readonly stepId: strin
   return <Placeholder kind="preview-block" detail={`${stepId} / ${blockName}`} />;
 }
 
-function SourcePlaceholder({ stepId }: { readonly stepId: string }) {
-  return <Placeholder kind="source" detail={stepId} />;
+function SourceView({ stepId }: { readonly stepId: string }) {
+  return <SourceEditor stepId={stepId} />;
 }
 
 // ── Empty state ──────────────────────────────────────────────────
@@ -107,7 +108,7 @@ function TargetContent({ target }: { readonly target: EditorTabTarget }) {
     case "lab-scaffold":
       return <LabScaffoldTree stepId={target.stepId} />;
     case "source":
-      return <SourcePlaceholder stepId={target.stepId} />;
+      return <SourceView stepId={target.stepId} />;
   }
 }
 
