@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
 
 // Mirrors AppSettings from the frontend.
 // Every field uses #[serde(default)] so old settings files parse without error on upgrade.
@@ -69,14 +68,14 @@ impl Default for EditorSettings {
     fn default() -> Self {
         Self {
             vim_mode: false,
-            ligatures: true,
-            font_size: 14,
-            tab_size: 2,
-            word_wrap: true,
-            line_numbers: "on".to_string(),
-            bracket_colors: true,
+            ligatures: default_true(),
+            font_size: default_font_size(),
+            tab_size: default_tab_size(),
+            word_wrap: default_true(),
+            line_numbers: default_line_numbers(),
+            bracket_colors: default_true(),
             auto_save: false,
-            auto_save_delay: 1000,
+            auto_save_delay: default_auto_save_delay(),
         }
     }
 }
@@ -85,23 +84,16 @@ impl Default for AppSettings {
     fn default() -> Self {
         Self {
             editor: EditorSettings::default(),
-            sidebar_panel: "explorer".to_string(),
+            sidebar_panel: default_sidebar_panel(),
             sidebar_collapsed: false,
             suppress_close_confirm: false,
         }
     }
 }
 
-fn settings_path() -> PathBuf {
-    dirs::home_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join(".handhold")
-        .join("settings.json")
-}
-
 #[tauri::command]
 pub async fn load_settings() -> Result<AppSettings, String> {
-    let path = settings_path();
+    let path = crate::paths::settings_path();
     if !path.exists() {
         return Ok(AppSettings::default());
     }
@@ -112,7 +104,7 @@ pub async fn load_settings() -> Result<AppSettings, String> {
 
 #[tauri::command]
 pub async fn save_settings(settings: AppSettings) -> Result<(), String> {
-    let path = settings_path();
+    let path = crate::paths::settings_path();
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| format!("Failed to create settings dir: {e}"))?;
     }

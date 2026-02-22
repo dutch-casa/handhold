@@ -56,6 +56,7 @@ export function layoutSkipList(data: SkipListData): Layout {
         y,
         width: nodeW,
         height: NODE_H,
+        shape: "grid-cell",
       };
       nodes.push(positioned);
       nodePositions.set(posId, positioned);

@@ -158,6 +158,7 @@ const svgStyle: React.CSSProperties = {
   maxWidth: "100%",
   height: "auto",
   display: "block",
+  margin: "0 auto",
 };
 
 function resolveDiagramRegion(

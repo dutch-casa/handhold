@@ -1,21 +1,13 @@
 use parking_lot::Mutex;
 use rusqlite::Connection;
-use std::path::PathBuf;
 
 /// Single SQLite connection behind a mutex.
 /// Desktop app with one user — no pool needed.
 pub struct Db(pub Mutex<Connection>);
 
-fn db_path() -> PathBuf {
-    dirs::home_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join(".handhold")
-        .join("handhold.db")
-}
-
 /// Open the database and run migrations. Called once at app startup.
 pub fn init() -> Result<Db, String> {
-    let path = db_path();
+    let path = crate::paths::db_path();
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)
             .map_err(|e| format!("Failed to create db directory: {e}"))?;

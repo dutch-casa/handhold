@@ -43,6 +43,7 @@ export function layoutMatrix(data: MatrixData): Layout {
         y: PAD,
         width: cellW,
         height: HEADER_H,
+        shape: "grid-cell",
         marker: "bucket-header",
       });
     }
@@ -63,6 +64,7 @@ export function layoutMatrix(data: MatrixData): Layout {
         y: PAD + offsetY + r * (CELL_H + GAP),
         width: headerW,
         height: CELL_H,
+        shape: "grid-cell",
         marker: "bucket-header",
       });
     }
@@ -77,6 +79,7 @@ export function layoutMatrix(data: MatrixData): Layout {
         y: PAD + offsetY + r * (CELL_H + GAP),
         width: cellW,
         height: CELL_H,
+        shape: "grid-cell",
       });
     }
   }

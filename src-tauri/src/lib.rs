@@ -4,6 +4,7 @@ mod db;
 mod fs;
 mod git;
 mod lsp;
+mod paths;
 mod preview;
 mod pty;
 mod runner;

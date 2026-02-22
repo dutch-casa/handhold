@@ -32,6 +32,7 @@ export function layoutQueue(data: QueueData | DequeData): Layout {
       y: PAD,
       width: cellW,
       height: CELL_H,
+      shape: "grid-cell",
     });
     x += cellW + GAP;
   }

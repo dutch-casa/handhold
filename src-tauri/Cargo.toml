@@ -27,6 +27,7 @@ serde_yml = "0.0.12"
 sha2 = "0.10"
 tar = "0.4"
 flate2 = "1.0"
+tokio = { version = "1", features = ["time"] }
 regex = "1"
 swc_common = "18"
 swc_ecma_parser = "33"

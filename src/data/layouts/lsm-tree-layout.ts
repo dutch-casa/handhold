@@ -8,7 +8,7 @@ import { measureCellWidth } from "./measure";
 const CELL_H = 36;
 const CELL_GAP = 2;
 const RUN_GAP = 16;
-const LEVEL_GAP = 32;
+const LEVEL_GAP = 56;
 const PAD = 24;
 const ARROW_GAP = 16;
 
@@ -30,6 +30,7 @@ export function layoutLsmTree(data: LsmTreeData): Layout {
         y,
         width: cellW,
         height: CELL_H,
+        shape: "grid-cell",
         marker: "active-bit",
       });
       x += cellW + CELL_GAP;
@@ -57,6 +58,7 @@ export function layoutLsmTree(data: LsmTreeData): Layout {
           y,
           width: cellW,
           height: CELL_H,
+          shape: "grid-cell",
         });
         x += cellW + CELL_GAP;
       }

@@ -1,6 +1,6 @@
 // Output of layout algorithms. Renderer consumes these — never raw DataState.
 
-export type NodeShape = "rect" | "circle" | "wide-rect" | "diamond";
+export type NodeShape = "rect" | "circle" | "wide-rect" | "diamond" | "grid-cell";
 
 export type NodeMarker =
   | "terminal"
@@ -40,6 +40,7 @@ export type PositionedPointer = {
   readonly name: string;
   readonly x: number;
   readonly y: number;
+  readonly angle?: number | undefined;
 };
 
 export type Layout = {

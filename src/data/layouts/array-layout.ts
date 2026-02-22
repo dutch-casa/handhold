@@ -27,6 +27,7 @@ export function layoutArray(data: ArrayData): Layout {
       y: PAD,
       width,
       height: CELL_H,
+      shape: "grid-cell",
     });
     x += width + GAP;
   }

@@ -1,5 +1,5 @@
 use parking_lot::Mutex;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::io::{BufRead, BufReader};
 use std::process::{Command, Stdio};
@@ -152,20 +152,22 @@ pub(crate) fn resolve_binary() -> Result<String, String> {
     Ok(path)
 }
 
-/// Fresh probe that bypasses and updates the cache.
-/// Used by the "Check again" button after the user installs a runtime.
+fn runtime_name(path: &str) -> &'static str {
+    if path.contains("podman") {
+        "podman"
+    } else {
+        "docker"
+    }
+}
+
 fn refresh_binary() -> RuntimeCheck {
     let mut guard = CACHED_BINARY.lock();
     match detect_binary() {
         Some((path, version)) => {
-            let short_name = if path.contains("podman") {
-                "podman"
-            } else {
-                "docker"
-            };
+            let name = runtime_name(&path);
             *guard = Some(path);
             RuntimeCheck::Ready {
-                binary: short_name.to_string(),
+                binary: name.to_string(),
                 version,
             }
         }
@@ -176,18 +178,12 @@ fn refresh_binary() -> RuntimeCheck {
     }
 }
 
-/// Detect which container runtime is available.
 #[tauri::command]
 pub async fn detect_container_runtime() -> Result<RuntimeInfo, String> {
     let path = resolve_binary()?;
     let version = probe_version(&path).unwrap_or_default();
-    let short_name = if path.contains("podman") {
-        "podman"
-    } else {
-        "docker"
-    };
     Ok(RuntimeInfo {
-        binary: short_name.to_string(),
+        binary: runtime_name(&path).to_string(),
         version,
     })
 }
@@ -234,7 +230,7 @@ pub async fn compose_up(
     const HEALTH_POLL_ATTEMPTS: usize = 30; // 60s total
 
     for _ in 0..HEALTH_POLL_ATTEMPTS {
-        std::thread::sleep(std::time::Duration::from_secs(HEALTH_POLL_INTERVAL_SECS));
+        tokio::time::sleep(std::time::Duration::from_secs(HEALTH_POLL_INTERVAL_SECS)).await;
 
         let ps = Command::new(&binary)
             .args(["compose", "-f", &compose_path, "ps", "--format", "json"])
@@ -380,15 +376,36 @@ pub async fn container_logs(
     Ok(())
 }
 
-/// Start, stop, or restart a single container.
+#[derive(Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ContainerAction {
+    Start,
+    Stop,
+    Restart,
+}
+
+impl ContainerAction {
+    fn as_str(&self) -> &'static str {
+        match self {
+            Self::Start => "start",
+            Self::Stop => "stop",
+            Self::Restart => "restart",
+        }
+    }
+}
+
 #[tauri::command]
-pub async fn container_action(container_name: String, action: String) -> Result<(), String> {
+pub async fn container_action(
+    container_name: String,
+    action: ContainerAction,
+) -> Result<(), String> {
     let binary = resolve_binary()?;
+    let verb = action.as_str();
 
     let output = Command::new(&binary)
-        .args([&action, &container_name])
+        .args([verb, &container_name])
         .output()
-        .map_err(|e| format!("{action} failed: {e}"))?;
+        .map_err(|e| format!("{verb} failed: {e}"))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);

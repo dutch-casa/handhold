@@ -5,7 +5,6 @@ import { measureCellWidth } from "./measure";
 // Dual view: parent array on top (horizontal cells with upward arrows),
 // forest below (tree layout for each connected component, side-by-side).
 
-const CELL_H = 36;
 const CELL_GAP = 8;
 const TREE_H_GAP = 24;
 const TREE_V_GAP = 48;
@@ -26,7 +25,7 @@ export function layoutUnionFind(data: UnionFindData): Layout {
     : 40;
   const NODE_R = Math.max(20, Math.ceil(maxElW / 2));
   const NODE_D = NODE_R * 2;
-  const forestOffsetY = PAD + CELL_H + 40;
+  const forestOffsetY = PAD + cellW + 40;
 
   const nodes: PositionedNode[] = [];
   const edges: PositionedEdge[] = [];
@@ -43,7 +42,8 @@ export function layoutUnionFind(data: UnionFindData): Layout {
       x: PAD + i * (cellW + CELL_GAP),
       y: PAD,
       width: cellW,
-      height: CELL_H,
+      height: cellW,
+      shape: "grid-cell",
       secondaryValue: `p:${parentIdx} r:${rankVal}`,
     });
   }

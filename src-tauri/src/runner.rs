@@ -23,12 +23,13 @@ pub struct RunResult {
 pub async fn run_command(
     command: String,
     cwd: String,
-    _env: Vec<(String, String)>,
+    env: Vec<(String, String)>,
     on_output: Channel<RunnerEvent>,
 ) -> Result<RunResult, String> {
     let mut child = Command::new("sh")
         .args(["-c", &command])
         .current_dir(&cwd)
+        .envs(env)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()

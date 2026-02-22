@@ -5,7 +5,7 @@ import { measureCellWidth } from "./measure";
 // Multiple trees arranged horizontally. Root nodes connected by a doubly-linked chain.
 // Min pointer arrow from above. Marked nodes get dashed border.
 
-const V_GAP = 48;
+const LEVEL_GAP = 24;
 const H_GAP = 20;
 const TREE_GAP = 40;
 const PAD = 24;
@@ -61,7 +61,7 @@ export function layoutFibonacciHeap(data: FibonacciHeapData): Layout {
       if (!node) return;
 
       const x = bandLeft + bandWidth / 2 - NODE_R;
-      const y = PAD + depth * V_GAP;
+      const y = PAD + depth * (NODE_D + LEVEL_GAP);
       const isMarked = markedSet.has(id);
 
       const pos: PositionedNode = {
@@ -91,37 +91,30 @@ export function layoutFibonacciHeap(data: FibonacciHeapData): Layout {
 
     placeNode(tree.rootId, treeX, treeWidth, 0);
 
-    // Tree edges
+    // Tree edges — connect circle perimeters along center-to-center line
     for (const node of tree.nodes) {
       const parentPos = posMap.get(node.id);
       if (!parentPos) continue;
       for (const childId of node.children) {
         const childPos = posMap.get(childId);
         if (!childPos) continue;
-        edges.push({
-          id: `${node.id}->${childId}`,
-          x1: parentPos.x + NODE_R,
-          y1: parentPos.y + NODE_D,
-          x2: childPos.x + NODE_R,
-          y2: childPos.y,
-        });
+        const [x1, y1, x2, y2] = circleEdge(parentPos, childPos, NODE_R);
+        edges.push({ id: `${node.id}->${childId}`, x1, y1, x2, y2 });
       }
     }
 
     treeX += treeWidth + TREE_GAP;
   }
 
-  // Root chain: horizontal doubly-linked edges between consecutive roots
+  // Root chain: doubly-linked edges between consecutive roots
   for (let i = 0; i < rootPositions.length - 1; i++) {
     const cur = rootPositions[i];
     const next = rootPositions[i + 1];
     if (!cur || !next) continue;
+    const [x1, y1, x2, y2] = circleEdge(cur, next, NODE_R);
     edges.push({
       id: `root-chain:${cur.id}->${next.id}`,
-      x1: cur.x + NODE_D,
-      y1: cur.y + NODE_R,
-      x2: next.x,
-      y2: next.y + NODE_R,
+      x1, y1, x2, y2,
       bidirectional: true,
       style: "dashed",
     });
@@ -135,6 +128,7 @@ export function layoutFibonacciHeap(data: FibonacciHeapData): Layout {
       name: "min",
       x: minNode.x + NODE_R,
       y: minNode.y - POINTER_OFFSET_Y,
+      angle: 180,
     });
   }
 
@@ -149,4 +143,18 @@ export function layoutFibonacciHeap(data: FibonacciHeapData): Layout {
   }
 
   return { nodes, edges, pointers, width: maxX + PAD, height: maxY + PAD };
+}
+
+function circleEdge(
+  a: { readonly x: number; readonly y: number },
+  b: { readonly x: number; readonly y: number },
+  r: number,
+): [number, number, number, number] {
+  const cx1 = a.x + r, cy1 = a.y + r;
+  const cx2 = b.x + r, cy2 = b.y + r;
+  const dx = cx2 - cx1, dy = cy2 - cy1;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  if (len === 0) return [cx1, cy1, cx2, cy2];
+  const ux = dx / len, uy = dy / len;
+  return [cx1 + ux * r, cy1 + uy * r, cx2 - ux * r, cy2 - uy * r];
 }

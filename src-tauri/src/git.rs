@@ -2,13 +2,20 @@ use serde::Serialize;
 use std::process::Command;
 
 #[derive(Clone, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ChangeKind {
+    Added,
+    Modified,
+    Deleted,
+}
+
+#[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LineChange {
     pub line: u32,
-    pub kind: &'static str, // "added" | "modified" | "deleted"
+    pub kind: ChangeKind,
 }
 
-/// Gutter decorations: per-line add/modify/delete markers for unstaged changes.
 #[tauri::command]
 pub async fn git_line_diff(path: String, workspace: String) -> Result<Vec<LineChange>, String> {
     let output = Command::new("git")
@@ -25,9 +32,11 @@ pub async fn git_line_diff(path: String, workspace: String) -> Result<Vec<LineCh
     Ok(parse_unified_diff(&stdout))
 }
 
-/// Like git_line_diff but includes staged changes — used for "all unsaved work" gutter.
 #[tauri::command]
-pub async fn git_line_diff_head(path: String, workspace: String) -> Result<Vec<LineChange>, String> {
+pub async fn git_line_diff_head(
+    path: String,
+    workspace: String,
+) -> Result<Vec<LineChange>, String> {
     let output = Command::new("git")
         .current_dir(&workspace)
         .args(["diff", "HEAD", "--unified=0", "--no-color", "--", &path])
@@ -42,16 +51,23 @@ pub async fn git_line_diff_head(path: String, workspace: String) -> Result<Vec<L
     Ok(parse_unified_diff(&stdout))
 }
 
-// --- Git status for file decorations ---
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum FileStatus {
+    Untracked,
+    Renamed,
+    Added,
+    Deleted,
+    Modified,
+}
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GitStatusEntry {
     pub path: String,
-    pub status: &'static str,
+    pub status: FileStatus,
 }
 
-/// Returns git status for all files in the workspace (for explorer decorations).
 #[tauri::command]
 pub async fn git_status_files(workspace: String) -> Result<Vec<GitStatusEntry>, String> {
     let output = Command::new("git")
@@ -77,7 +93,6 @@ fn parse_porcelain(output: &str) -> Vec<GitStatusEntry> {
         let xy = &line[..2];
         let path = &line[3..];
 
-        // For renames "R  old -> new", take the new path
         let path = if let Some((_old, new)) = path.split_once(" -> ") {
             new
         } else {
@@ -85,11 +100,13 @@ fn parse_porcelain(output: &str) -> Vec<GitStatusEntry> {
         };
 
         let status = match xy {
-            "??" => "untracked",
-            s if s.starts_with('R') || s.ends_with('R') => "renamed",
-            s if s.starts_with('A') || s.ends_with('A') => "added",
-            s if s.starts_with('D') || s.ends_with('D') => "deleted",
-            s if s.starts_with('M') || s.ends_with('M') || s.starts_with('U') => "modified",
+            "??" => FileStatus::Untracked,
+            s if s.starts_with('R') || s.ends_with('R') => FileStatus::Renamed,
+            s if s.starts_with('A') || s.ends_with('A') => FileStatus::Added,
+            s if s.starts_with('D') || s.ends_with('D') => FileStatus::Deleted,
+            s if s.starts_with('M') || s.ends_with('M') || s.starts_with('U') => {
+                FileStatus::Modified
+            }
             _ => continue,
         };
 
@@ -105,7 +122,6 @@ fn parse_unified_diff(diff: &str) -> Vec<LineChange> {
     let mut changes = Vec::new();
 
     for line in diff.lines() {
-        // Hunk headers: @@ -old_start[,old_count] +new_start[,new_count] @@
         if !line.starts_with("@@ ") {
             continue;
         }
@@ -115,13 +131,12 @@ fn parse_unified_diff(diff: &str) -> Vec<LineChange> {
         };
 
         let kind = match (hunk.old_count, hunk.new_count) {
-            (0, _) => "added",
-            (_, 0) => "deleted",
-            _ => "modified",
+            (0, _) => ChangeKind::Added,
+            (_, 0) => ChangeKind::Deleted,
+            _ => ChangeKind::Modified,
         };
 
-        if kind == "deleted" {
-            // Deleted lines: mark the line *after* the deletion point
+        if matches!(kind, ChangeKind::Deleted) {
             changes.push(LineChange {
                 line: hunk.new_start,
                 kind,
@@ -130,7 +145,7 @@ fn parse_unified_diff(diff: &str) -> Vec<LineChange> {
             for i in 0..hunk.new_count {
                 changes.push(LineChange {
                     line: hunk.new_start + i,
-                    kind,
+                    kind: kind.clone(),
                 });
             }
         }
@@ -146,7 +161,6 @@ struct HunkRange {
 }
 
 fn parse_hunk_header(line: &str) -> Option<HunkRange> {
-    // @@ -7,3 +7,5 @@ or @@ -7 +7 @@ (count defaults to 1)
     let stripped = line.strip_prefix("@@ ")?;
     let end = stripped.find(" @@")?;
     let range_str = &stripped[..end];

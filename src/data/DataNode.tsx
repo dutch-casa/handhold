@@ -28,6 +28,7 @@ export function DataNode({
   const isNull = node.id === "__null__";
   const isCircle = node.shape === "circle";
   const isDiamond = node.shape === "diamond";
+  const isGridCell = node.shape === "grid-cell";
   const strokeColor = resolveStrokeColor(node.marker, dimmed);
   const fillColor = resolveFillColor(node.marker, isNull);
   const nodeOpacity = exiting ? 0 : dimmed ? 0.4 : 1;
@@ -87,7 +88,7 @@ export function DataNode({
         <motion.rect
           width={node.width}
           height={node.height}
-          rx={Number.parseFloat(radii.md)}
+          rx={isGridCell ? 0 : Number.parseFloat(radii.md)}
           fill={isNull ? "none" : fillColor}
           {...(prevStrokeColor ? { initial: { stroke: prevStrokeColor } } : {})}
           animate={{ stroke: isNull ? colors.textDim : strokeColor }}

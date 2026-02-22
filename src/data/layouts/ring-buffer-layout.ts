@@ -1,24 +1,29 @@
 import type { RingBufferData } from "@/types/lesson";
 import type { Layout, PositionedNode, PositionedPointer } from "../layout-types";
-import { measureCellWidth } from "./measure";
 
 // Cells arranged on a circle. Active segment (head→tail) gets accent marker.
+// Radius computed so adjacent cells never overlap.
 
-const CELL_H = 36;
+const CELL_SIZE = 44;
+const CELL_GAP = 12;
 const PAD = 40;
+const POINTER_GAP = 48;
 
 export function layoutRingBuffer(data: RingBufferData): Layout {
   if (data.capacity === 0) {
     return { nodes: [], edges: [], pointers: [], width: 0, height: 0 };
   }
 
-  const cellW = data.values.length > 0
-    ? Math.max(...data.values.map((v) => measureCellWidth(String(v), 40)))
-    : 40;
-  const ringR = Math.max(60, data.capacity * (cellW + 8) / (2 * Math.PI));
-  const pointerR = ringR + 40;
-  const cx = PAD + ringR + cellW / 2;
-  const cy = PAD + ringR + CELL_H / 2;
+  const n = data.capacity;
+  // Minimum chord length between adjacent cell centers = cell diagonal + gap
+  const minChord = CELL_SIZE + CELL_GAP;
+  // chord = 2R * sin(π/n), so R = minChord / (2 * sin(π/n))
+  const ringR = n <= 1
+    ? 0
+    : Math.max(CELL_SIZE, minChord / (2 * Math.sin(Math.PI / n)));
+  const pointerR = ringR + POINTER_GAP;
+  const cx = PAD + ringR + CELL_SIZE / 2;
+  const cy = PAD + ringR + CELL_SIZE / 2;
   const nodes: PositionedNode[] = [];
 
   // Determine which indices are in the active segment
@@ -27,15 +32,15 @@ export function layoutRingBuffer(data: RingBufferData): Layout {
     let i = data.head;
     while (i !== data.tail) {
       activeIndices.add(i);
-      i = (i + 1) % data.capacity;
+      i = (i + 1) % n;
     }
     activeIndices.add(data.tail);
   }
 
-  for (let i = 0; i < data.capacity; i++) {
-    const angle = (2 * Math.PI * i) / data.capacity - Math.PI / 2;
-    const x = cx + ringR * Math.cos(angle) - cellW / 2;
-    const y = cy + ringR * Math.sin(angle) - CELL_H / 2;
+  for (let i = 0; i < n; i++) {
+    const angle = (2 * Math.PI * i) / n - Math.PI / 2;
+    const x = cx + ringR * Math.cos(angle) - CELL_SIZE / 2;
+    const y = cy + ringR * Math.sin(angle) - CELL_SIZE / 2;
     const value = data.values[i] ?? "_";
     const isActive = activeIndices.has(i) && value !== "_";
 
@@ -44,29 +49,31 @@ export function layoutRingBuffer(data: RingBufferData): Layout {
       value,
       x,
       y,
-      width: cellW,
-      height: CELL_H,
+      width: CELL_SIZE,
+      height: CELL_SIZE,
       marker: isActive ? "active-bit" : undefined,
     });
   }
 
-  // Head/tail pointers positioned outside the ring
+  // Head/tail pointers outside the ring, arrows pointing inward
   const pointers: PositionedPointer[] = [];
-  const headAngle = (2 * Math.PI * data.head) / data.capacity - Math.PI / 2;
-  pointers.push({
-    name: "head",
-    x: cx + pointerR * Math.cos(headAngle),
-    y: cy + pointerR * Math.sin(headAngle),
-  });
 
-  const tailAngle = (2 * Math.PI * data.tail) / data.capacity - Math.PI / 2;
-  pointers.push({
-    name: "tail",
-    x: cx + pointerR * Math.cos(tailAngle),
-    y: cy + pointerR * Math.sin(tailAngle),
-  });
+  function addPointer(name: string, index: number): void {
+    const α = (2 * Math.PI * index) / n - Math.PI / 2;
+    // Rotation to point inward: default arrow is "up", rotate to face center
+    const deg = (α * 180) / Math.PI + 270;
+    pointers.push({
+      name,
+      x: cx + pointerR * Math.cos(α),
+      y: cy + pointerR * Math.sin(α),
+      angle: deg,
+    });
+  }
 
-  const totalSize = (ringR + cellW + PAD) * 2 + 40;
+  addPointer("head", data.head);
+  addPointer("tail", data.tail);
+
+  const totalSize = (ringR + CELL_SIZE + PAD) * 2;
 
   return {
     nodes,

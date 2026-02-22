@@ -7,7 +7,7 @@ import { measureCellWidth } from "./measure";
 
 const KEY_PAD = 12;
 const NODE_H = 44;
-const V_GAP = 48;
+const LEVEL_GAP = 24;
 const H_GAP = 32;
 const PAD = 24;
 const POINTER_OFFSET_Y = 36;
@@ -66,7 +66,7 @@ export function layoutBTree(data: BTreeData): Layout {
 
     const w = nodeWidth(node);
     const x = bandLeft + bandWidth / 2 - w / 2;
-    const y = PAD + depth * V_GAP;
+    const y = PAD + depth * (NODE_H + LEVEL_GAP);
 
     // Render keys as a single wide-rect node with joined key labels
     const pos: PositionedNode = {

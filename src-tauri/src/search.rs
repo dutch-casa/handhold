@@ -1,19 +1,8 @@
+use crate::paths::IGNORED_DIRS;
 use regex::Regex;
 use serde::Serialize;
 use std::fs;
 use std::path::Path;
-
-const IGNORED_DIRS: &[&str] = &[
-    "node_modules",
-    "dist",
-    "build",
-    "target",
-    ".next",
-    "__pycache__",
-    ".cache",
-    "coverage",
-    ".turbo",
-];
 
 const MAX_MATCHES: usize = 1000;
 

@@ -31,6 +31,7 @@ export function layoutBitArray(data: BitArrayData): Layout {
       y: PAD + row * (CELL_SIZE + GAP),
       width: CELL_SIZE,
       height: CELL_SIZE,
+      shape: "grid-cell",
       marker: isActive ? "active-bit" : "inactive-bit",
     });
   }

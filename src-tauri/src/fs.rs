@@ -1,3 +1,4 @@
+use crate::paths::IGNORED_DIRS;
 use serde::Serialize;
 use std::ffi::OsStr;
 use std::fs;
@@ -135,18 +136,6 @@ pub async fn read_dir_recursive(path: String) -> Result<Vec<FsEntry>, String> {
     Ok(entries)
 }
 
-const IGNORED_DIRS: &[&str] = &[
-    "node_modules",
-    "dist",
-    "build",
-    "target",
-    ".next",
-    "__pycache__",
-    ".cache",
-    "coverage",
-    ".turbo",
-];
-
 fn collect_entries(dir: &Path, entries: &mut Vec<FsEntry>) -> Result<(), String> {
     let read_dir =
         fs::read_dir(dir).map_err(|e| format!("Failed to read dir {}: {e}", dir.display()))?;
@@ -237,7 +226,7 @@ fn collect_ts_files(
         }
 
         if path.is_dir() {
-            if IGNORED_DIRS.contains(&name.as_str()) || name == "node_modules" {
+            if IGNORED_DIRS.contains(&name.as_str()) {
                 continue;
             }
             collect_ts_files(&path, files, total_bytes)?;
