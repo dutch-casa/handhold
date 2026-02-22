@@ -1,67 +1,102 @@
-// Root compound component for the course editor.
-// Wraps children in EditorProvider. Placeholder slots for future panels.
-
-import type { ReactNode } from "react";
+import { type ReactNode } from "react";
+import { Layout } from "@/editor/view/Layout";
+import { Toolbar } from "@/editor/view/Toolbar";
 import { EditorProvider } from "@/editor/view/EditorContext";
+
+// ── CourseEditor ──────────────────────────────────────────────────
+// Top-level shell for the course editor. Wires the responsive Layout
+// and Toolbar with EditorProvider context. Content components are
+// injected via props — CourseEditor owns chrome, not content.
 
 type CourseEditorProps = {
   readonly courseId: string;
-  readonly children?: ReactNode | undefined;
+  readonly courseName: string;
+  readonly stepName: string;
+  readonly stepIndex: number;
+  readonly stepCount: number;
+  readonly sidebar?: ReactNode;
+  readonly canvas?: ReactNode;
+  readonly panel?: ReactNode;
+  readonly bottomBar?: ReactNode;
 };
 
-function CourseEditorRoot({ courseId, children }: CourseEditorProps) {
+export function CourseEditor({
+  courseId,
+  courseName,
+  stepName,
+  stepIndex,
+  stepCount,
+  sidebar,
+  canvas,
+  panel,
+  bottomBar,
+}: CourseEditorProps) {
   return (
-    <EditorProvider courseId={courseId}>
-      {children ?? <DefaultLayout />}
+    <EditorProvider
+      courseId={courseId}
+      courseName={courseName}
+      stepName={stepName}
+      stepIndex={stepIndex}
+      stepCount={stepCount}
+    >
+      <div className="flex h-screen flex-col">
+        <Toolbar>
+          <Toolbar.Breadcrumb />
+          <Toolbar.Spacer />
+          <Toolbar.ViewToggle />
+          <Toolbar.UndoRedo />
+          <Toolbar.PreviewButton />
+        </Toolbar>
+
+        <div className="flex-1 min-h-0">
+          <Layout>
+            <Layout.Sidebar>
+              {sidebar ?? <DefaultSidebar />}
+            </Layout.Sidebar>
+            <Layout.Canvas>
+              {canvas ?? <DefaultCanvas />}
+            </Layout.Canvas>
+            <Layout.Panel>
+              {panel ?? <DefaultPanel />}
+            </Layout.Panel>
+            <Layout.BottomBar>
+              {bottomBar ?? <DefaultBottomBar />}
+            </Layout.BottomBar>
+          </Layout>
+        </div>
+      </div>
     </EditorProvider>
   );
 }
 
-// Placeholder slots — div shells with semantic classNames for future implementation.
-
-function Toolbar() {
-  return <div className="editor-toolbar" />;
-}
-
-function Layout({ children }: { readonly children?: ReactNode | undefined }) {
-  return <div className="editor-layout flex h-full w-full">{children}</div>;
-}
-
-function Sidebar() {
-  return <div className="editor-sidebar" />;
-}
-
-function Canvas() {
-  return <div className="editor-canvas flex-1" />;
-}
-
-function Panel() {
-  return <div className="editor-panel" />;
-}
-
-function BottomBar() {
-  return <div className="editor-bottom-bar" />;
-}
-
-function DefaultLayout() {
+function DefaultSidebar() {
   return (
-    <div className="flex h-full w-full flex-col">
-      <Toolbar />
-      <Layout>
-        <Sidebar />
-        <Canvas />
-        <Panel />
-      </Layout>
-      <BottomBar />
+    <div className="ide-empty-state h-full">
+      <span className="text-ide-xs text-muted-foreground">Steps</span>
     </div>
   );
 }
 
-export const CourseEditor = Object.assign(CourseEditorRoot, {
-  Toolbar,
-  Layout,
-  Sidebar,
-  Canvas,
-  Panel,
-  BottomBar,
-});
+function DefaultCanvas() {
+  return (
+    <div className="ide-empty-state h-full">
+      <span className="text-ide-sm text-muted-foreground">Canvas</span>
+    </div>
+  );
+}
+
+function DefaultPanel() {
+  return (
+    <div className="ide-empty-state h-full">
+      <span className="text-ide-xs text-muted-foreground">Properties</span>
+    </div>
+  );
+}
+
+function DefaultBottomBar() {
+  return (
+    <div className="ide-empty-state h-full">
+      <span className="text-ide-xs text-muted-foreground">Preview</span>
+    </div>
+  );
+}

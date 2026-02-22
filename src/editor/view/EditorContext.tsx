@@ -1,43 +1,41 @@
-// Editor context: exposes stores to the component tree.
-// Components consume via use() (React 19), never useContext().
-
 import { createContext, use, type ReactNode } from "react";
-import { useLayoutStore, type LayoutStore } from "@/editor/viewmodel/layout-store";
+
+// Shared context for the course editor — provides course identity and
+// step navigation without prop drilling through the layout tree.
 
 type EditorContextValue = {
   readonly courseId: string;
-  readonly layoutStore: typeof useLayoutStore;
+  readonly courseName: string;
+  readonly stepName: string;
+  readonly stepIndex: number;
+  readonly stepCount: number;
 };
 
-const EditorContext = createContext<EditorContextValue | null>(null);
+const EditorCtx = createContext<EditorContextValue | null>(null);
 
-export function useEditorContext(): EditorContextValue {
-  const ctx = use(EditorContext);
-  if (!ctx) {
-    throw new Error("useEditorContext must be used within <EditorProvider>");
-  }
-  return ctx;
-}
-
-// Narrow selectors for common access patterns
-export function useEditorCourseId(): string {
-  return useEditorContext().courseId;
-}
-
-export function useEditorLayoutStore(): LayoutStore {
-  return useEditorContext().layoutStore();
-}
-
-type EditorProviderProps = {
-  readonly courseId: string;
+type EditorProviderProps = EditorContextValue & {
   readonly children: ReactNode;
 };
 
-export function EditorProvider({ courseId, children }: EditorProviderProps) {
-  const value: EditorContextValue = {
-    courseId,
-    layoutStore: useLayoutStore,
-  };
+export function EditorProvider({
+  children,
+  courseId,
+  courseName,
+  stepName,
+  stepIndex,
+  stepCount,
+}: EditorProviderProps) {
+  return (
+    <EditorCtx
+      value={{ courseId, courseName, stepName, stepIndex, stepCount }}
+    >
+      {children}
+    </EditorCtx>
+  );
+}
 
-  return <EditorContext value={value}>{children}</EditorContext>;
+export function useEditorContext(): EditorContextValue {
+  const ctx = use(EditorCtx);
+  if (!ctx) throw new Error("useEditorContext must be used within EditorProvider");
+  return ctx;
 }

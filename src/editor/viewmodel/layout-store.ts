@@ -1,5 +1,13 @@
-// Editor layout state. Manages sidebar, panel, bottom bar, and breakpoint.
-// Pattern: State (readonly) + Actions (named transitions). Views select, never set.
+// Layout store — governs the responsive 3-column editor shell.
+// Single writer: only Layout's ResizeObserver and resize handles mutate.
+//
+// INVARIANTS:
+//   L1: sidebarWidth >= SIDEBAR_MIN && sidebarWidth <= maxSidebar (40% container)
+//   L2: panelWidth >= PANEL_MIN && panelWidth <= maxPanel (40% container)
+//   L3: bottomBarHeight >= BOTTOM_BAR_MIN
+//   L4: breakpoint "sm" => sidebar hidden, panel hidden
+//   L5: breakpoint "md" => panel hidden (unless toggled)
+//   L6: sidebarVisible = false => sidebar unmounted
 
 import { create } from "zustand";
 
@@ -8,118 +16,147 @@ export type PanelTab = "agent" | "inspector";
 export type BottomBarTab = "timeline" | "preview" | "diagnostics";
 export type Breakpoint = "sm" | "md" | "lg" | "xl";
 
+export const SIDEBAR_MIN = 200;
+export const PANEL_MIN = 280;
+export const BOTTOM_BAR_MIN = 120;
+export const SIDEBAR_DEFAULT = 260;
+export const PANEL_DEFAULT = 320;
+export const BOTTOM_BAR_DEFAULT = 200;
+
 type LayoutState = {
-  readonly sidebar: {
-    readonly visible: boolean;
-    readonly width: number;
-    readonly activeSection: SidebarSection;
-  };
-  readonly panel: {
-    readonly visible: boolean;
-    readonly width: number;
-    readonly activeTab: PanelTab;
-  };
-  readonly bottomBar: {
-    readonly visible: boolean;
-    readonly height: number;
-    readonly activeTab: BottomBarTab;
-  };
   readonly breakpoint: Breakpoint;
+  readonly sidebarVisible: boolean;
+  readonly sidebarWidth: number;
+  readonly sidebarSection: SidebarSection;
+  readonly panelVisible: boolean;
+  readonly panelWidth: number;
+  readonly panelTab: PanelTab;
+  readonly bottomBarVisible: boolean;
+  readonly bottomBarHeight: number;
+  readonly bottomBarTab: BottomBarTab;
 };
 
 type LayoutActions = {
+  setBreakpoint: (bp: Breakpoint) => void;
   toggleSidebar: () => void;
-  setSidebarWidth: (width: number) => void;
+  setSidebarVisible: (v: boolean) => void;
+  setSidebarWidth: (w: number) => void;
   setSidebarSection: (section: SidebarSection) => void;
   togglePanel: () => void;
-  setPanelWidth: (width: number) => void;
+  setPanelVisible: (v: boolean) => void;
+  setPanelWidth: (w: number) => void;
   setPanelTab: (tab: PanelTab) => void;
   toggleBottomBar: () => void;
-  setBottomBarHeight: (height: number) => void;
+  setBottomBarVisible: (v: boolean) => void;
+  setBottomBarHeight: (h: number) => void;
   setBottomBarTab: (tab: BottomBarTab) => void;
-  setBreakpoint: (bp: Breakpoint) => void;
 };
 
 export type LayoutStore = LayoutState & LayoutActions;
 
-const INITIAL_STATE: LayoutState = {
-  sidebar: { visible: true, width: 260, activeSection: "course" },
-  panel: { visible: false, width: 320, activeTab: "agent" },
-  bottomBar: { visible: false, height: 240, activeTab: "timeline" },
+const INITIAL: LayoutState = {
   breakpoint: "lg",
+  sidebarVisible: true,
+  sidebarWidth: SIDEBAR_DEFAULT,
+  sidebarSection: "course",
+  panelVisible: true,
+  panelWidth: PANEL_DEFAULT,
+  panelTab: "agent",
+  bottomBarVisible: false,
+  bottomBarHeight: BOTTOM_BAR_DEFAULT,
+  bottomBarTab: "timeline",
 };
 
-export const useLayoutStore = create<LayoutStore>((set) => ({
-  ...INITIAL_STATE,
+export const useLayoutStore = create<LayoutStore>((set, get) => ({
+  ...INITIAL,
 
-  toggleSidebar: () =>
-    set((s) => ({
-      sidebar: { ...s.sidebar, visible: !s.sidebar.visible },
-    })),
+  setBreakpoint: (bp) => {
+    const prev = get().breakpoint;
+    if (bp === prev) return;
 
-  setSidebarWidth: (width) =>
-    set((s) => ({ sidebar: { ...s.sidebar, width } })),
+    // L4, L5: auto-collapse on breakpoint drop
+    if (bp === "sm") {
+      set({ breakpoint: bp, sidebarVisible: false, panelVisible: false });
+    } else if (bp === "md") {
+      set({
+        breakpoint: bp,
+        panelVisible: false,
+        ...(prev === "sm" ? { sidebarVisible: true } : {}),
+      });
+    } else if (prev === "sm" || prev === "md") {
+      set({ breakpoint: bp, sidebarVisible: true, panelVisible: true });
+    } else {
+      set({ breakpoint: bp });
+    }
+  },
 
-  setSidebarSection: (section) =>
-    set((s) => ({
-      sidebar: { ...s.sidebar, activeSection: section, visible: true },
-    })),
+  toggleSidebar: () => set({ sidebarVisible: !get().sidebarVisible }),
+  setSidebarVisible: (v) => set({ sidebarVisible: v }),
 
-  togglePanel: () =>
-    set((s) => ({
-      panel: { ...s.panel, visible: !s.panel.visible },
-    })),
+  setSidebarWidth: (w) => {
+    set({ sidebarWidth: Math.max(SIDEBAR_MIN, w) });
+  },
 
-  setPanelWidth: (width) =>
-    set((s) => ({ panel: { ...s.panel, width } })),
+  setSidebarSection: (section) => {
+    set({ sidebarSection: section, sidebarVisible: true });
+  },
 
-  setPanelTab: (tab) =>
-    set((s) => ({
-      panel: { ...s.panel, activeTab: tab, visible: true },
-    })),
+  togglePanel: () => set({ panelVisible: !get().panelVisible }),
+  setPanelVisible: (v) => set({ panelVisible: v }),
 
-  toggleBottomBar: () =>
-    set((s) => ({
-      bottomBar: { ...s.bottomBar, visible: !s.bottomBar.visible },
-    })),
+  setPanelWidth: (w) => {
+    set({ panelWidth: Math.max(PANEL_MIN, w) });
+  },
 
-  setBottomBarHeight: (height) =>
-    set((s) => ({ bottomBar: { ...s.bottomBar, height } })),
+  setPanelTab: (tab) => {
+    set({ panelTab: tab, panelVisible: true });
+  },
 
-  setBottomBarTab: (tab) =>
-    set((s) => ({
-      bottomBar: { ...s.bottomBar, activeTab: tab, visible: true },
-    })),
+  toggleBottomBar: () => set({ bottomBarVisible: !get().bottomBarVisible }),
+  setBottomBarVisible: (v) => set({ bottomBarVisible: v }),
 
-  setBreakpoint: (bp) => set({ breakpoint: bp }),
+  setBottomBarHeight: (h) => {
+    set({ bottomBarHeight: Math.max(BOTTOM_BAR_MIN, h) });
+  },
+
+  setBottomBarTab: (tab) => {
+    set({ bottomBarTab: tab, bottomBarVisible: true });
+  },
 }));
 
 // --- Selectors ---
 
-export function useSidebarVisible(): boolean {
-  return useLayoutStore((s) => s.sidebar.visible);
-}
-
-export function useSidebarSection(): SidebarSection {
-  return useLayoutStore((s) => s.sidebar.activeSection);
-}
-
-export function usePanelVisible(): boolean {
-  return useLayoutStore((s) => s.panel.visible);
-}
-
-export function usePanelTab(): PanelTab {
-  return useLayoutStore((s) => s.panel.activeTab);
-}
-
-export function useBottomBarVisible(): boolean {
-  return useLayoutStore((s) => s.bottomBar.visible);
-}
-
-export function useBottomBarTab(): BottomBarTab {
-  return useLayoutStore((s) => s.bottomBar.activeTab);
-}
-
 export function useBreakpoint(): Breakpoint {
   return useLayoutStore((s) => s.breakpoint);
+}
+
+export function useSidebarState() {
+  return useLayoutStore((s) => ({
+    visible: s.sidebarVisible,
+    width: s.sidebarWidth,
+    section: s.sidebarSection,
+  }));
+}
+
+export function usePanelState() {
+  return useLayoutStore((s) => ({
+    visible: s.panelVisible,
+    width: s.panelWidth,
+    tab: s.panelTab,
+  }));
+}
+
+export function useBottomBarState() {
+  return useLayoutStore((s) => ({
+    visible: s.bottomBarVisible,
+    height: s.bottomBarHeight,
+    tab: s.bottomBarTab,
+  }));
+}
+
+export function getBreakpoint(width: number): Breakpoint {
+  if (width < 1024) return "sm";
+  if (width < 1440) return "md";
+  if (width < 1920) return "lg";
+  return "xl";
 }
