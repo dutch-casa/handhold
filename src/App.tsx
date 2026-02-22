@@ -23,6 +23,7 @@ import {
 import { parseLab } from "@/lab/parse-lab";
 import { Lab } from "@/lab/Lab";
 import { CourseNavBar } from "@/course/CourseNavBar";
+import { CourseEditor } from "@/editor/view/CourseEditor";
 import type { CourseRecord, ManifestStep } from "@/types/browser";
 
 const queryClient = new QueryClient({
@@ -129,6 +130,9 @@ function AppContent() {
           onOpen={(course: CourseRecord) =>
             navigate({ kind: "course", courseId: course.id, stepIndex: 0 })
           }
+          onEdit={(course: CourseRecord) =>
+            navigate({ kind: "editor", courseId: course.id })
+          }
           initialImportUrl={pendingImportUrl ?? undefined}
           onImportHandled={() => setPendingImportUrl(null)}
         />
@@ -139,6 +143,16 @@ function AppContent() {
           key={route.courseId}
           courseId={route.courseId}
           onBack={() => navigate({ kind: "browser" })}
+        />
+      );
+    case "editor":
+      return (
+        <CourseEditor
+          courseId={route.courseId}
+          courseName=""
+          stepName=""
+          stepIndex={0}
+          stepCount={0}
         />
       );
   }
