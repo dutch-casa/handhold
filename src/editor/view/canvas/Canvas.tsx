@@ -3,6 +3,9 @@
 
 import { useEditorActiveTab } from "@/editor/viewmodel/course-editor-store";
 import { EditorTabs } from "@/editor/view/canvas/EditorTabs";
+import { LabConfigEditor } from "@/editor/view/lab/LabConfigEditor";
+import { LabInstructionsEditor } from "@/editor/view/lab/LabInstructionsEditor";
+import { LabScaffoldTree } from "@/editor/view/lab/LabScaffoldTree";
 import type { EditorTabTarget } from "@/editor/model/types";
 import { StepOverview } from "@/editor/view/canvas/StepOverview";
 
@@ -46,18 +49,6 @@ function ChartBlockPlaceholder({ stepId, blockName }: { readonly stepId: string;
 
 function PreviewBlockPlaceholder({ stepId, blockName }: { readonly stepId: string; readonly blockName: string }) {
   return <Placeholder kind="preview-block" detail={`${stepId} / ${blockName}`} />;
-}
-
-function LabConfigPlaceholder({ stepId }: { readonly stepId: string }) {
-  return <Placeholder kind="lab-config" detail={stepId} />;
-}
-
-function LabInstructionsPlaceholder({ stepId }: { readonly stepId: string }) {
-  return <Placeholder kind="lab-instructions" detail={stepId} />;
-}
-
-function LabScaffoldPlaceholder({ stepId, filePath }: { readonly stepId: string; readonly filePath: string }) {
-  return <Placeholder kind="lab-scaffold" detail={`${stepId} / ${filePath}`} />;
 }
 
 function SourcePlaceholder({ stepId }: { readonly stepId: string }) {
@@ -110,11 +101,11 @@ function TargetContent({ target }: { readonly target: EditorTabTarget }) {
     case "preview-block":
       return <PreviewBlockPlaceholder stepId={target.stepId} blockName={target.blockName} />;
     case "lab-config":
-      return <LabConfigPlaceholder stepId={target.stepId} />;
+      return <LabConfigEditor stepId={target.stepId} />;
     case "lab-instructions":
-      return <LabInstructionsPlaceholder stepId={target.stepId} />;
+      return <LabInstructionsEditor stepId={target.stepId} />;
     case "lab-scaffold":
-      return <LabScaffoldPlaceholder stepId={target.stepId} filePath={target.filePath} />;
+      return <LabScaffoldTree stepId={target.stepId} />;
     case "source":
       return <SourcePlaceholder stepId={target.stepId} />;
   }
