@@ -24,7 +24,8 @@ export type ImportResult =
 /** App-level navigation state persisted to SQLite. */
 export type Route =
   | { readonly kind: "browser" }
-  | { readonly kind: "course"; readonly courseId: string; readonly stepIndex: number };
+  | { readonly kind: "course"; readonly courseId: string; readonly stepIndex: number }
+  | { readonly kind: "editor"; readonly courseId: string };
 
 /** A step entry from handhold.yaml — the manifest on disk. */
 export type ManifestStep = {

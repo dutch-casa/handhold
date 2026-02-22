@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { CourseRecord } from "@/types/browser";
 import { useDeleteCourse } from "@/browser/use-courses";
+import { useBrowser } from "@/browser/Browser";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -20,7 +21,7 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
-import { Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 
 type CourseCardProps = {
   readonly course: CourseRecord;
@@ -28,6 +29,7 @@ type CourseCardProps = {
 };
 
 export function CourseCard({ course, onOpen }: CourseCardProps) {
+  const { onEdit } = useBrowser();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteWorkspaces, setDeleteWorkspaces] = useState(false);
   const deleteCourse = useDeleteCourse();
@@ -82,6 +84,10 @@ export function CourseCard({ course, onOpen }: CourseCardProps) {
           </button>
         </ContextMenuTrigger>
         <ContextMenuContent>
+          <ContextMenuItem onClick={() => onEdit(course)}>
+            <Pencil />
+            Edit Course
+          </ContextMenuItem>
           <ContextMenuItem variant="destructive" onClick={() => setDeleteOpen(true)}>
             <Trash2 />
             Delete Course

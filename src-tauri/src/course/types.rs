@@ -35,6 +35,10 @@ pub enum Route {
         course_id: String,
         step_index: i64,
     },
+    #[serde(rename_all = "camelCase")]
+    Editor {
+        course_id: String,
+    },
 }
 
 #[derive(Deserialize)]
