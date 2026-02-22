@@ -2,6 +2,7 @@ import { type ReactNode } from "react";
 import { Layout } from "@/editor/view/Layout";
 import { Toolbar } from "@/editor/view/Toolbar";
 import { EditorProvider } from "@/editor/view/EditorContext";
+import { KeyboardShortcuts } from "@/editor/view/KeyboardShortcuts";
 import { Sidebar } from "@/editor/view/sidebar/Sidebar";
 
 // ── CourseEditor ──────────────────────────────────────────────────
@@ -40,6 +41,7 @@ export function CourseEditor({
       stepIndex={stepIndex}
       stepCount={stepCount}
     >
+      <KeyboardShortcuts />
       <div className="flex h-screen flex-col">
         <Toolbar>
           <Toolbar.Breadcrumb />
