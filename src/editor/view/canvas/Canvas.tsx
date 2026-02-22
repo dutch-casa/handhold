@@ -3,6 +3,7 @@
 
 import { useEditorActiveTab } from "@/editor/viewmodel/course-editor-store";
 import { EditorTabs } from "@/editor/view/canvas/EditorTabs";
+import { SourceEditor } from "@/editor/view/canvas/SourceEditor";
 import type { EditorTabTarget } from "@/editor/model/types";
 
 // ── Placeholder shell ────────────────────────────────────────────
@@ -61,8 +62,8 @@ function LabScaffoldPlaceholder({ stepId, filePath }: { readonly stepId: string;
   return <Placeholder kind="lab-scaffold" detail={`${stepId} / ${filePath}`} />;
 }
 
-function SourcePlaceholder({ stepId }: { readonly stepId: string }) {
-  return <Placeholder kind="source" detail={stepId} />;
+function SourceView({ stepId }: { readonly stepId: string }) {
+  return <SourceEditor stepId={stepId} />;
 }
 
 // ── Empty state ──────────────────────────────────────────────────
@@ -117,7 +118,7 @@ function TargetContent({ target }: { readonly target: EditorTabTarget }) {
     case "lab-scaffold":
       return <LabScaffoldPlaceholder stepId={target.stepId} filePath={target.filePath} />;
     case "source":
-      return <SourcePlaceholder stepId={target.stepId} />;
+      return <SourceView stepId={target.stepId} />;
   }
 }
 
