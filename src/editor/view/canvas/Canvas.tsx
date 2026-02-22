@@ -4,6 +4,7 @@
 import { useEditorActiveTab } from "@/editor/viewmodel/course-editor-store";
 import { EditorTabs } from "@/editor/view/canvas/EditorTabs";
 import type { EditorTabTarget } from "@/editor/model/types";
+import { StepOverview } from "@/editor/view/canvas/StepOverview";
 
 // ── Placeholder shell ────────────────────────────────────────────
 // Centered label showing the target kind + identifying info.
@@ -21,9 +22,7 @@ function Placeholder({ kind, detail }: { readonly kind: string; readonly detail:
 
 // ── Placeholder components per target kind ───────────────────────
 
-function StepOverviewPlaceholder({ stepId }: { readonly stepId: string }) {
-  return <Placeholder kind="step-overview" detail={stepId} />;
-}
+// StepOverview replaces the placeholder — imported above.
 
 function CodeBlockPlaceholder({ stepId, blockName }: { readonly stepId: string; readonly blockName: string }) {
   return <Placeholder kind="code-block" detail={`${stepId} / ${blockName}`} />;
@@ -97,7 +96,7 @@ function EmptyCanvas() {
 function TargetContent({ target }: { readonly target: EditorTabTarget }) {
   switch (target.kind) {
     case "step-overview":
-      return <StepOverviewPlaceholder stepId={target.stepId} />;
+      return <StepOverview stepId={target.stepId} />;
     case "code-block":
       return <CodeBlockPlaceholder stepId={target.stepId} blockName={target.blockName} />;
     case "data-block":
