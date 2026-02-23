@@ -17,21 +17,21 @@ Handhold is a desktop app for interactive programming courses. Each lesson is a 
 
 ## Install
 
-One command. No Rust, no build tools, no dependencies.
+One command. Detects your OS, checks dependencies, downloads the latest release, and installs it.
+
+**macOS / Linux:**
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/dutch-casa/handhold/main/scripts/install-handhold.sh | bash
 ```
 
-This detects your OS and architecture, downloads the latest release from GitHub, and installs it. macOS gets a `.dmg` mounted to `/Applications`, Linux gets a `.deb` or `.AppImage`.
+**Windows (PowerShell):**
 
-Windows users: download the `.msi` installer directly from the [releases page](https://github.com/dutch-casa/handhold/releases/latest).
+```powershell
+irm https://raw.githubusercontent.com/dutch-casa/handhold/main/scripts/install-handhold.ps1 | iex
+```
 
-### Container runtime (labs only)
-
-Some labs spin up services like Postgres or Redis. These need [Podman](https://podman.io/docs/installation) or [Docker](https://docs.docker.com/get-docker/). Lessons never require containers.
-
-If you open a lab that needs containers and none are installed, Handhold shows platform-specific install instructions and a retry button. You don't need to figure this out in advance.
+The installer prompts to set up optional dependencies (Docker or Podman for labs) and handles platform quirks like macOS Gatekeeper for unsigned apps. Lessons never require containers -- only labs that spin up services like Postgres or Redis.
 
 ---
 
@@ -78,13 +78,21 @@ Other distros: see [Tauri Linux prerequisites](https://v2.tauri.app/start/prereq
 
 ### Setup
 
+The installer has a `--dev` flag that checks for Rust, Bun, Tauri CLI, and platform build deps:
+
 ```sh
 git clone https://github.com/dutch-casa/handhold.git
 cd handhold
+bash scripts/install-handhold.sh --dev
+```
+
+Or use the standalone dev setup script (if you've already installed deps manually):
+
+```sh
 bash scripts/install.sh
 ```
 
-The install script checks prerequisites, installs frontend packages, downloads the TTS sidecar binary, and verifies the Rust build.
+Both scripts check prerequisites, install frontend packages, download the TTS sidecar binary, and verify the Rust build.
 
 Handhold uses [Kokoro](https://github.com/hexgrad/kokoro) for text-to-speech. The `koko` binary must be built separately and placed in `src-tauri/binaries/koko-<target-triple>`. The install script tells you if it's missing.
 
