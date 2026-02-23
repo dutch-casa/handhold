@@ -11,37 +11,27 @@
 # Note: piped iex mode runs non-interactively (auto-accepts defaults).
 # For interactive prompts, download and run the script directly.
 
-# Wrap in a function so `irm | iex` actually executes the body.
-# param() at file scope is ignored when piped through iex.
-function Install-Handhold {
-    param(
-        [switch]$Dev
-    )
+$ErrorActionPreference = "Stop"
 
-    $ErrorActionPreference = "Stop"
+# ── ANSI + platform + header (print immediately, before any function defs) ──
 
-    $Repo = "dutch-casa/handhold"
-    $AppName = "Handhold"
+$ESC = [char]27
+$CheckMark = [char]0x2713
+$CrossMark = [char]0x2717
+$Arrow     = [char]0x25B8
+$Bullet    = [char]0x2022
+$HLine     = [string][char]0x2500
+$EmDash    = [char]0x2014
 
-    # ── ANSI helpers ────────────────────────────────────────────────────
+$script:Green  = "$ESC[32m"
+$script:Red    = "$ESC[31m"
+$script:Yellow = "$ESC[33m"
+$script:Bold   = "$ESC[1m"
+$script:Dim    = "$ESC[2m"
+$script:NC     = "$ESC[0m"
 
-    $ESC = [char]27
-    $CheckMark = [char]0x2713
-    $CrossMark = [char]0x2717
-    $Arrow     = [char]0x25B8
-    $Bullet    = [char]0x2022
-
-    $Green  = "$ESC[32m"
-    $Red    = "$ESC[31m"
-    $Yellow = "$ESC[33m"
-    $Bold   = "$ESC[1m"
-    $Dim    = "$ESC[2m"
-    $NC     = "$ESC[0m"
-
-    # Enable virtual terminal processing for ANSI on Windows 10+.
-    # If it fails (PS 5.1 without VT support), strip all ANSI codes.
-    try {
-        $kernel32 = Add-Type -MemberDefinition @"
+try {
+    $kernel32 = Add-Type -MemberDefinition @"
 [DllImport("kernel32.dll", SetLastError = true)]
 public static extern IntPtr GetStdHandle(int nStdHandle);
 [DllImport("kernel32.dll", SetLastError = true)]
@@ -50,14 +40,47 @@ public static extern bool GetConsoleMode(IntPtr hConsoleHandle, out uint lpMode)
 public static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
 "@ -Name "Kernel32VT" -Namespace "Win32" -PassThru -ErrorAction SilentlyContinue
 
-        $hOut = $kernel32::GetStdHandle(-11)
-        $mode = 0
-        $null = $kernel32::GetConsoleMode($hOut, [ref]$mode)
-        $null = $kernel32::SetConsoleMode($hOut, ($mode -bor 0x0004))
-    } catch {
-        # No ANSI support — fall back to plain text
-        $Green = ""; $Red = ""; $Yellow = ""; $Bold = ""; $Dim = ""; $NC = ""
+    $hOut = $kernel32::GetStdHandle(-11)
+    $mode = 0
+    $null = $kernel32::GetConsoleMode($hOut, [ref]$mode)
+    $null = $kernel32::SetConsoleMode($hOut, ($mode -bor 0x0004))
+} catch {
+    $script:Green = ""; $script:Red = ""; $script:Yellow = ""
+    $script:Bold = ""; $script:Dim = ""; $script:NC = ""
+}
+
+$script:Arch = $env:PROCESSOR_ARCHITECTURE
+$script:ArchTag = switch ($script:Arch) {
+    "AMD64" { "x64" }
+    "ARM64" { "arm64" }
+    default {
+        Write-Host "`n  $($script:Red)${CrossMark} Unsupported architecture: $($script:Arch)$($script:NC)`n"
+        exit 1
     }
+}
+
+$script:PlatformLabel = "Windows ($($script:ArchTag))"
+
+# Header prints NOW — user sees output immediately.
+Write-Host ""
+Write-Host "  $($script:Bold)Handhold Installer$($script:NC)"
+Write-Host "  $($HLine * 26)"
+Write-Host ""
+Write-Host "  $($script:Dim)Platform$($script:NC)    $($script:PlatformLabel)"
+
+# ── Main installer function ─────────────────────────────────────────────
+
+function Install-Handhold {
+    param(
+        [switch]$Dev
+    )
+
+    $Repo = "dutch-casa/handhold"
+    $AppName = "Handhold"
+
+    # Aliases for readability inside the function
+    $Green = $script:Green; $Red = $script:Red; $Yellow = $script:Yellow
+    $Bold = $script:Bold; $Dim = $script:Dim; $NC = $script:NC
 
     function Write-Ok   ($msg) { Write-Host "    ${Green}${CheckMark}${NC} $msg" }
     function Write-Warn ($msg) { Write-Host "    ${Yellow}~${NC} $msg" }
@@ -69,7 +92,6 @@ public static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
         exit 1
     }
 
-    # Detect non-interactive mode (piped iex or redirected input)
     $Interactive = $true
     try {
         if ([Console]::IsInputRedirected) { $Interactive = $false }
@@ -98,32 +120,11 @@ public static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
         return [int]$choice
     }
 
-    # ── Platform detection ──────────────────────────────────────────────
-
-    $Arch = $env:PROCESSOR_ARCHITECTURE
-    $ArchTag = switch ($Arch) {
-        "AMD64" { "x64" }
-        "ARM64" { "arm64" }
-        default { Exit-Fatal "Unsupported architecture: $Arch" }
-    }
-
-    $PlatformLabel = "Windows ($ArchTag)"
-
     # ── Check admin elevation ───────────────────────────────────────────
 
     $IsAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
         [Security.Principal.WindowsBuiltInRole]::Administrator
     )
-
-    # ── Header ──────────────────────────────────────────────────────────
-
-    Write-Host ""
-    $header = "  ${Bold}Handhold Installer${NC}"
-    if ($Dev) { $header += "  ${Dim}(dev mode)${NC}" }
-    Write-Host $header
-    Write-Host "  $([string][char]0x2500 * 26)"
-    Write-Host ""
-    Write-Host "  ${Dim}Platform${NC}    $PlatformLabel"
 
     # ── Winget availability ─────────────────────────────────────────────
 
@@ -131,7 +132,7 @@ public static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
 
     function Install-ViaWinget ($id, $name) {
         if (-not $HasWinget) {
-            Write-Fail "$name $([char]0x2014) winget not available. Install manually."
+            Write-Fail "$name ${EmDash} winget not available. Install manually."
             return $false
         }
         Write-Host "    ${Dim}Installing $name via winget...${NC}"
@@ -149,7 +150,7 @@ public static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
             $ver = (git --version) -replace "git version ", ""
             Write-Ok "Git $ver"
         } else {
-            Write-Warn "Git $([char]0x2014) not found"
+            Write-Warn "Git ${EmDash} not found"
             if (Read-YesNo "Install Git?") {
                 if (Install-ViaWinget "Git.Git" "Git") {
                     $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
@@ -179,7 +180,7 @@ public static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
             return
         }
 
-        Write-Warn "Container runtime $([char]0x2014) not found ${Dim}(needed for labs only)${NC}"
+        Write-Warn "Container runtime ${EmDash} not found ${Dim}(needed for labs only)${NC}"
 
         if (Read-YesNo "Install a container runtime? (labs need Docker or Podman)" "n") {
             $choice = Read-Choice "Which container runtime?" @("Podman (recommended)", "Docker")
@@ -195,7 +196,7 @@ public static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
                 }
                 2 {
                     if (Install-ViaWinget "Docker.DockerDesktop" "Docker Desktop") {
-                        Write-Ok "Docker Desktop installed $([char]0x2014) launch it to finish setup"
+                        Write-Ok "Docker Desktop installed ${EmDash} launch it to finish setup"
                     } else {
                         Write-Fail "Install Docker manually: https://docs.docker.com/desktop/install/windows-install/"
                         $script:SkippedDeps += "Container runtime (Docker/Podman)"
@@ -217,13 +218,12 @@ public static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
     if ($Dev) {
         Write-Info "Checking dev dependencies..."
 
-        # Rust
         $rustc = Get-Command rustc -ErrorAction SilentlyContinue
         if ($rustc) {
             $ver = ((rustc --version) -split " ")[1]
             Write-Ok "Rust $ver"
         } else {
-            Write-Warn "Rust $([char]0x2014) not found"
+            Write-Warn "Rust ${EmDash} not found"
             if (Read-YesNo "Install Rust via rustup?") {
                 Write-Host "    ${Dim}Downloading rustup-init.exe...${NC}"
                 $rustupPath = "$env:TEMP\rustup-init.exe"
@@ -237,12 +237,11 @@ public static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
             }
         }
 
-        # Bun
         $bun = Get-Command bun -ErrorAction SilentlyContinue
         if ($bun) {
             Write-Ok "Bun $(bun --version)"
         } else {
-            Write-Warn "Bun $([char]0x2014) not found"
+            Write-Warn "Bun ${EmDash} not found"
             if (Read-YesNo "Install Bun?") {
                 irm bun.sh/install.ps1 | iex
                 $env:Path += ";$env:USERPROFILE\.bun\bin"
@@ -252,17 +251,15 @@ public static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
             }
         }
 
-        # Visual Studio Build Tools
         $cl = Get-Command cl -ErrorAction SilentlyContinue
         if ($cl) {
             Write-Ok "Visual Studio C++ Build Tools"
         } else {
-            Write-Warn "Visual Studio C++ Build Tools $([char]0x2014) not found"
+            Write-Warn "Visual Studio C++ Build Tools ${EmDash} not found"
             Write-Host "    Install from: https://visualstudio.microsoft.com/visual-cpp-build-tools/"
             Write-Host "    Select 'Desktop development with C++' workload."
         }
 
-        # Tauri CLI
         $tauriInstalled = (cargo install --list 2>$null) -match "^tauri-cli"
         if ($tauriInstalled) {
             Write-Ok "Tauri CLI"
@@ -294,17 +291,16 @@ public static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
 
     # ── Resolve asset ───────────────────────────────────────────────────
 
-    # Tauri produces both .msi and .exe (NSIS) — prefer .msi for silent install
-    $AssetName = "Handhold_${VerNum}_${ArchTag}_en-US.msi"
+    $AssetName = "Handhold_${VerNum}_$($script:ArchTag)_en-US.msi"
     $asset = $releaseJson.assets | Where-Object { $_.name -eq $AssetName }
 
     if (-not $asset) {
-        $AssetName = "Handhold_${VerNum}_${ArchTag}-setup.exe"
+        $AssetName = "Handhold_${VerNum}_$($script:ArchTag)-setup.exe"
         $asset = $releaseJson.assets | Where-Object { $_.name -eq $AssetName }
     }
 
     if (-not $asset) {
-        Exit-Fatal "No installer found for Windows $ArchTag in release $Version.`n  Check: https://github.com/$Repo/releases/tag/$Version"
+        Exit-Fatal "No installer found for Windows $($script:ArchTag) in release $Version.`n  Check: https://github.com/$Repo/releases/tag/$Version"
     }
 
     $DownloadUrl = $asset.browser_download_url
@@ -314,11 +310,10 @@ public static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
 
     Write-Info "Downloading $AssetName..."
 
-    # Synchronous download with Write-Progress — works on all PS versions.
     try {
-        $response = [System.Net.HttpWebRequest]::Create($DownloadUrl)
-        $response.UserAgent = "Handhold-Installer"
-        $webResponse = $response.GetResponse()
+        $request = [System.Net.HttpWebRequest]::Create($DownloadUrl)
+        $request.UserAgent = "Handhold-Installer"
+        $webResponse = $request.GetResponse()
         $totalBytes = $webResponse.ContentLength
         $stream = $webResponse.GetResponseStream()
         $fileStream = [System.IO.File]::Create($Dest)
@@ -363,7 +358,6 @@ public static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
         $msiArgs = "/i `"$Dest`" /quiet /norestart"
         Write-Host "    ${Dim}Running MSI installer...${NC}"
 
-        # MSI install to Program Files requires elevation
         $startArgs = @{
             FilePath     = "msiexec.exe"
             ArgumentList = $msiArgs
@@ -427,7 +421,7 @@ public static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
                     bash "$projectRoot/scripts/download-sidecars.sh"
                     Write-Ok "Sidecars downloaded"
                 } else {
-                    Write-Warn "bash not found $([char]0x2014) run scripts/download-sidecars.sh manually (Git Bash or WSL)."
+                    Write-Warn "bash not found ${EmDash} run scripts/download-sidecars.sh manually (Git Bash or WSL)."
                 }
 
                 Write-Host "    ${Dim}Verifying Rust build...${NC}"
@@ -437,7 +431,7 @@ public static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
                 Pop-Location
                 Pop-Location
             } else {
-                Write-Warn "Not in the Handhold repo $([char]0x2014) skipping bun install / cargo check."
+                Write-Warn "Not in the Handhold repo ${EmDash} skipping bun install / cargo check."
                 Write-Host "      Clone the repo first: ${Bold}git clone https://github.com/$Repo.git${NC}"
                 Write-Host "      Then run: ${Bold}.\scripts\install-handhold.ps1 -Dev${NC}"
             }
@@ -447,7 +441,7 @@ public static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
     # ── Done ────────────────────────────────────────────────────────────
 
     Write-Host ""
-    Write-Host "  $([string][char]0x2500 * 26)"
+    Write-Host "  $($HLine * 26)"
     Write-Host "  ${Green}${Bold}Done!${NC}"
     Write-Host ""
     Write-Host "  Launch ${Bold}Handhold${NC} from the Start Menu or desktop shortcut."
@@ -470,6 +464,5 @@ public static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
     Write-Host ""
 }
 
-# Invoke the function. When run via `irm | iex`, this executes immediately.
-# When run directly, @args passes any command-line parameters through.
+# Invoke. irm | iex runs this immediately; direct invocation passes params through.
 Install-Handhold @args

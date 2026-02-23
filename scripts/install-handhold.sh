@@ -20,6 +20,48 @@ BOLD='\033[1m'
 DIM='\033[2m'
 NC='\033[0m'
 
+# ── Platform detection + header (before function defs so output is immediate) ──
+
+OS="$(uname -s)"
+ARCH="$(uname -m)"
+DEV_MODE=0
+
+for arg in "$@"; do
+  case "$arg" in
+    --dev) DEV_MODE=1 ;;
+  esac
+done
+
+case "$OS" in
+  Darwin) PLATFORM="macos" ;;
+  Linux)  PLATFORM="linux" ;;
+  *)      printf "\n  ${RED}✗ Unsupported OS: %s${NC}\n\n" "$OS" >&2; exit 1 ;;
+esac
+
+case "$ARCH" in
+  arm64|aarch64) ARCH_TAG="aarch64" ;;
+  x86_64|AMD64)  ARCH_TAG="amd64" ;;
+  *)             printf "\n  ${RED}✗ Unsupported architecture: %s${NC}\n\n" "$ARCH" >&2; exit 1 ;;
+esac
+
+PLATFORM_LABEL="$PLATFORM"
+[[ "$PLATFORM" == "macos" && "$ARCH_TAG" == "aarch64" ]] && PLATFORM_LABEL="macOS (Apple Silicon)"
+[[ "$PLATFORM" == "macos" && "$ARCH_TAG" == "amd64" ]]   && PLATFORM_LABEL="macOS (Intel)"
+[[ "$PLATFORM" == "linux" && "$ARCH_TAG" == "amd64" ]]   && PLATFORM_LABEL="Linux (x86_64)"
+[[ "$PLATFORM" == "linux" && "$ARCH_TAG" == "aarch64" ]] && PLATFORM_LABEL="Linux (ARM64)"
+
+# Print header immediately — user sees output within milliseconds, not after
+# all function definitions are parsed.
+printf "\n"
+printf "  ${BOLD}Handhold Installer${NC}"
+[[ $DEV_MODE -eq 1 ]] && printf "  ${DIM}(dev mode)${NC}"
+printf "\n"
+printf "  ──────────────────────────\n"
+printf "\n"
+printf "  ${DIM}Platform${NC}    %s\n" "$PLATFORM_LABEL"
+
+# ── Helpers ─────────────────────────────────────────────────────────────
+
 ok()   { printf "    ${GREEN}✓${NC} %s\n" "$1"; }
 warn() { printf "    ${YELLOW}~${NC} %s\n" "$1"; }
 fail() { printf "    ${RED}✗${NC} %s\n" "$1"; }
@@ -32,8 +74,6 @@ prompt_yn() {
   [[ "$default" == "n" ]] && hint="[y/N]"
   printf "\n  ${BOLD}▸${NC} %s %s " "$msg" "$hint"
 
-  # When piped (curl | bash), stdin is the script itself — no TTY.
-  # Reopen /dev/tty for interactive prompts.
   if [[ -t 0 ]]; then
     read -r answer
   elif [[ -e /dev/tty ]]; then
@@ -70,46 +110,6 @@ prompt_choice() {
   choice="${choice:-1}"
   echo "$choice"
 }
-
-# ── Platform detection ──────────────────────────────────────────────────
-
-OS="$(uname -s)"
-ARCH="$(uname -m)"
-DEV_MODE=0
-
-for arg in "$@"; do
-  case "$arg" in
-    --dev) DEV_MODE=1 ;;
-  esac
-done
-
-case "$OS" in
-  Darwin) PLATFORM="macos" ;;
-  Linux)  PLATFORM="linux" ;;
-  *)      die "Unsupported OS: $OS. Download from https://github.com/$REPO/releases" ;;
-esac
-
-case "$ARCH" in
-  arm64|aarch64) ARCH_TAG="aarch64" ;;
-  x86_64|AMD64)  ARCH_TAG="amd64" ;;
-  *)             die "Unsupported architecture: $ARCH" ;;
-esac
-
-PLATFORM_LABEL="$PLATFORM"
-[[ "$PLATFORM" == "macos" && "$ARCH_TAG" == "aarch64" ]] && PLATFORM_LABEL="macOS (Apple Silicon)"
-[[ "$PLATFORM" == "macos" && "$ARCH_TAG" == "amd64" ]]   && PLATFORM_LABEL="macOS (Intel)"
-[[ "$PLATFORM" == "linux" && "$ARCH_TAG" == "amd64" ]]   && PLATFORM_LABEL="Linux (x86_64)"
-[[ "$PLATFORM" == "linux" && "$ARCH_TAG" == "aarch64" ]] && PLATFORM_LABEL="Linux (ARM64)"
-
-# ── Header ──────────────────────────────────────────────────────────────
-
-printf "\n"
-printf "  ${BOLD}Handhold Installer${NC}"
-[[ $DEV_MODE -eq 1 ]] && printf "  ${DIM}(dev mode)${NC}"
-printf "\n"
-printf "  ──────────────────────────\n"
-printf "\n"
-printf "  ${DIM}Platform${NC}    %s\n" "$PLATFORM_LABEL"
 
 # ── Dependency checks ───────────────────────────────────────────────────
 
