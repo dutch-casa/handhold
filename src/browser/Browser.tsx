@@ -11,7 +11,6 @@ import LogoSvg from "@/public/Logo.svg?url";
 
 type BrowserContext = {
   readonly onOpen: (course: CourseRecord) => void;
-  readonly onEdit: (course: CourseRecord) => void;
 };
 
 const Ctx = createContext<BrowserContext | null>(null);
@@ -26,14 +25,13 @@ export { useBrowser };
 
 type BrowserProps = {
   readonly onOpen: (course: CourseRecord) => void;
-  readonly onEdit: (course: CourseRecord) => void;
   readonly initialImportUrl?: string | undefined;
   readonly onImportHandled?: (() => void) | undefined;
 };
 
 const SKELETON_KEYS = ["s1", "s2", "s3", "s4", "s5", "s6"] as const;
 
-export function Browser({ onOpen, onEdit, initialImportUrl, onImportHandled }: BrowserProps) {
+export function Browser({ onOpen, initialImportUrl, onImportHandled }: BrowserProps) {
   const [search, setSearch] = useState("");
   const [activeTag, setActiveTag] = useState("");
   const [importOpen, setImportOpen] = useState(false);
@@ -61,7 +59,7 @@ export function Browser({ onOpen, onEdit, initialImportUrl, onImportHandled }: B
   const isLoading = allCourses.isLoading;
 
   return (
-    <Ctx value={{ onOpen, onEdit }}>
+    <Ctx value={{ onOpen }}>
       <div className="flex h-screen flex-col bg-background">
         <header className="flex shrink-0 items-center gap-3 border-b border-border px-6 py-4">
           <img src={LogoSvg} alt="Handhold" className="size-8 shrink-0" />

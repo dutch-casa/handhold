@@ -276,67 +276,59 @@ pub async fn read_type_definitions(root: String) -> Result<Vec<FileContent>, Str
     let mut total_bytes: usize = 0;
 
     // @types packages
-    let at_types = node_modules.join("@types");
-    if at_types.exists() {
-        if let Ok(entries) = fs::read_dir(&at_types) {
-            for entry in entries.flatten() {
-                if total_bytes >= MAX_TYPE_BYTES {
-                    break;
-                }
-                let index_dts = entry.path().join("index.d.ts");
-                if index_dts.exists() {
-                    if let Ok(content) = fs::read_to_string(&index_dts) {
-                        total_bytes += content.len();
-                        files.push(FileContent {
-                            path: index_dts.to_string_lossy().to_string(),
-                            content,
-                        });
-                    }
-                }
-            }
-        }
-    }
-
-    // Regular packages: package.json → types/typings field
-    if let Ok(entries) = fs::read_dir(&node_modules) {
+    if let Ok(entries) = fs::read_dir(node_modules.join("@types")) {
         for entry in entries.flatten() {
             if total_bytes >= MAX_TYPE_BYTES {
                 break;
             }
-            let name = entry.file_name().to_string_lossy().to_string();
-            if name.starts_with('.') || name == "@types" {
+            let path = entry.path().join("index.d.ts");
+            let Ok(content) = fs::read_to_string(&path) else {
                 continue;
-            }
-
-            let pkg_json_path = entry.path().join("package.json");
-            let pkg_content = match fs::read_to_string(&pkg_json_path) {
-                Ok(c) => c,
-                Err(_) => continue,
             };
-
-            let pkg: serde_json::Value = match serde_json::from_str(&pkg_content) {
-                Ok(v) => v,
-                Err(_) => continue,
-            };
-
-            let types_field = pkg
-                .get("types")
-                .or_else(|| pkg.get("typings"))
-                .and_then(|v| v.as_str());
-
-            if let Some(types_rel) = types_field {
-                let types_path = entry.path().join(types_rel);
-                if types_path.exists() {
-                    if let Ok(content) = fs::read_to_string(&types_path) {
-                        total_bytes += content.len();
-                        files.push(FileContent {
-                            path: types_path.to_string_lossy().to_string(),
-                            content,
-                        });
-                    }
-                }
-            }
+            total_bytes += content.len();
+            files.push(FileContent {
+                path: path.to_string_lossy().to_string(),
+                content,
+            });
         }
+    }
+
+    // Regular packages: package.json → types/typings field
+    let Ok(entries) = fs::read_dir(&node_modules) else {
+        return Ok(files);
+    };
+    for entry in entries.flatten() {
+        if total_bytes >= MAX_TYPE_BYTES {
+            break;
+        }
+        let name = entry.file_name().to_string_lossy().to_string();
+        if name.starts_with('.') || name == "@types" {
+            continue;
+        }
+
+        let Ok(pkg_content) = fs::read_to_string(entry.path().join("package.json")) else {
+            continue;
+        };
+        let Ok(pkg) = serde_json::from_str::<serde_json::Value>(&pkg_content) else {
+            continue;
+        };
+        let Some(types_rel) = pkg
+            .get("types")
+            .or_else(|| pkg.get("typings"))
+            .and_then(|v| v.as_str())
+        else {
+            continue;
+        };
+
+        let types_path = entry.path().join(types_rel);
+        let Ok(content) = fs::read_to_string(&types_path) else {
+            continue;
+        };
+        total_bytes += content.len();
+        files.push(FileContent {
+            path: types_path.to_string_lossy().to_string(),
+            content,
+        });
     }
 
     Ok(files)

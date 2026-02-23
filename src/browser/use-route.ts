@@ -9,7 +9,11 @@ export function useRoute() {
 
   const { data: route } = useQuery({
     queryKey: ROUTE_KEY,
-    queryFn: api.routeLoad,
+    queryFn: async () => {
+      const stored = await api.routeLoad();
+      if (stored.kind !== "browser" && stored.kind !== "course") return { kind: "browser" as const };
+      return stored;
+    },
     staleTime: Infinity,
   });
 

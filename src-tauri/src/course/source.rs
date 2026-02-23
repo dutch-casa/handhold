@@ -44,9 +44,7 @@ pub(super) fn manifest_url(source: &CourseSource) -> String {
             path,
         } => {
             if path.is_empty() {
-                format!(
-                    "https://raw.githubusercontent.com/{owner}/{repo}/{branch}/handhold.yaml"
-                )
+                format!("https://raw.githubusercontent.com/{owner}/{repo}/{branch}/handhold.yaml")
             } else {
                 format!(
                     "https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{path}/handhold.yaml"

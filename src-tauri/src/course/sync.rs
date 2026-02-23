@@ -4,9 +4,9 @@ use rusqlite::params;
 use std::path::PathBuf;
 use tauri::State;
 
+use super::now_ms;
 use super::source::hash_id;
 use super::types::{Manifest, SyncResult};
-use super::now_ms;
 
 #[tauri::command]
 pub async fn courses_dir_path() -> Result<String, String> {

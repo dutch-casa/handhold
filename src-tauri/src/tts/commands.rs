@@ -32,8 +32,7 @@ pub async fn synthesize(
                     end_ms,
                 });
             }
-            let audio_base64 =
-                base64::engine::general_purpose::STANDARD.encode(&bundled.wav_bytes);
+            let audio_base64 = base64::engine::general_purpose::STANDARD.encode(&bundled.wav_bytes);
             let _ = on_event.send(TTSEvent::AudioReady {
                 audio_base64,
                 duration_ms: bundled.duration_ms,

@@ -137,6 +137,13 @@ pub async fn route_save(db: State<'_, Db>, route: Route) -> Result<(), String> {
             )
             .map_err(|e| e.to_string())?;
         }
+        Route::Editor { course_id } => {
+            conn.execute(
+                "UPDATE app_route SET kind = 'editor', course_id = ?1, step_index = NULL WHERE id = 1",
+                params![course_id],
+            )
+            .map_err(|e| e.to_string())?;
+        }
     }
     Ok(())
 }
@@ -182,6 +189,12 @@ pub async fn route_load(db: State<'_, Db>) -> Result<Route, String> {
                 Ok(Route::Browser)
             }
         }
+        "editor" => {
+            let Some(course_id) = row.1 else {
+                return Ok(Route::Browser);
+            };
+            Ok(Route::Editor { course_id })
+        }
         _ => Ok(Route::Browser),
     }
 }
@@ -198,10 +211,7 @@ pub async fn lab_is_provisioned(db: State<'_, Db>, workspace_path: String) -> Re
 }
 
 #[tauri::command]
-pub async fn lab_mark_provisioned(
-    db: State<'_, Db>,
-    workspace_path: String,
-) -> Result<(), String> {
+pub async fn lab_mark_provisioned(db: State<'_, Db>, workspace_path: String) -> Result<(), String> {
     let conn = db.0.lock();
     conn.execute(
         "INSERT INTO lab_provision (workspace_path, provisioned_at) VALUES (?1, ?2)

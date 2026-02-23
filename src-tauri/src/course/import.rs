@@ -4,12 +4,12 @@ use rusqlite::params;
 use tauri::State;
 
 use super::download::{download_github_tarball, download_http_course};
+use super::now_ms;
 use super::queries::read_course_row;
 use super::source::{
     canonical_source_url, manifest_url, parse_source_url, source_id, CourseSource,
 };
 use super::types::{ImportResult, Manifest};
-use super::now_ms;
 
 #[tauri::command]
 pub async fn course_import(db: State<'_, Db>, source_url: String) -> Result<ImportResult, String> {
