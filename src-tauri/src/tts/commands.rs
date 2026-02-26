@@ -55,6 +55,13 @@ pub async fn synthesize(
     }
 
     let wav = wav_wrap(&stitched.pcm, stitched.sample_rate);
+
+    // Write-through: persist to bundle so future sessions (and other users
+    // who download this course) get instant playback with no generation.
+    if let Some(bp) = &bundle_path {
+        bundle_write(Path::new(bp), text_hash, &wav, &stitched.timings);
+    }
+
     let audio_base64 = base64::engine::general_purpose::STANDARD.encode(&wav);
     let _ = on_event.send(TTSEvent::AudioReady {
         audio_base64,
