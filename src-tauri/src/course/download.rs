@@ -1,79 +1,85 @@
-use std::process::Command;
+use std::io::Read;
+use std::path::Path;
+
+use flate2::read::GzDecoder;
+use tar::Archive;
 
 use super::types::Manifest;
 
-/// Clone a GitHub repo (shallow, with LFS) and copy the course subpath to dest.
-/// LFS files (pre-baked audio cache) are fetched automatically if git-lfs is installed.
+/// Download a course from a GitHub repo via tarball, extracting only the subpath.
 pub(super) fn download_github_course(
     owner: &str,
     repo: &str,
     branch: &str,
     subpath: &str,
-    dest: &std::path::Path,
+    dest: &Path,
 ) -> Result<(), String> {
-    let url = format!("https://github.com/{owner}/{repo}.git");
-    let tmp = std::env::temp_dir().join(format!("handhold-clone-{owner}-{repo}-{}", std::process::id()));
+    let tarball_url =
+        format!("https://github.com/{owner}/{repo}/archive/refs/heads/{branch}.tar.gz");
 
-    if tmp.exists() {
-        let _ = std::fs::remove_dir_all(&tmp);
-    }
+    let resp = reqwest::blocking::get(&tarball_url)
+        .and_then(reqwest::blocking::Response::error_for_status)
+        .map_err(|e| format!("Failed to download tarball: {e}"))?;
 
-    let mut cmd = Command::new("git");
-    cmd.args(["clone", "--depth", "1"]);
-    if branch != "HEAD" {
-        cmd.args(["--branch", branch]);
-    }
-    cmd.arg(&url)
-        .arg(&tmp)
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped());
+    let decoder = GzDecoder::new(resp);
+    let mut archive = Archive::new(decoder);
 
-    let output = cmd
-        .output()
-        .map_err(|e| format!("Failed to run git clone (is git installed?): {e}"))?;
+    // GitHub tarballs have a top-level prefix dir like `{repo}-{branch}/`.
+    // We strip that prefix and match entries under `{prefix}/{subpath}/`.
+    let prefix_with_subpath = if subpath.is_empty() {
+        String::new()
+    } else {
+        format!("/{subpath}/")
+    };
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let _ = std::fs::remove_dir_all(&tmp);
-        return Err(format!("git clone failed: {stderr}"));
-    }
+    for entry in archive
+        .entries()
+        .map_err(|e| format!("Failed to read tarball: {e}"))?
+    {
+        let mut entry = entry.map_err(|e| format!("Tarball entry error: {e}"))?;
+        let raw_path = entry
+            .path()
+            .map_err(|e| format!("Invalid path in tarball: {e}"))?
+            .to_path_buf();
 
-    // Copy the course subpath (or repo root) into dest, excluding .git.
-    let source = if subpath.is_empty() { tmp.clone() } else { tmp.join(subpath) };
-    if !source.exists() {
-        let _ = std::fs::remove_dir_all(&tmp);
-        return Err(format!("Subpath '{subpath}' not found in repository"));
-    }
+        let raw_str = raw_path.to_string_lossy();
 
-    copy_dir_recursive(&source, dest)?;
+        // Strip the top-level prefix directory (everything before the first `/`).
+        let after_prefix = match raw_str.find('/') {
+            Some(i) => &raw_str[i..],
+            None => continue,
+        };
 
-    let _ = std::fs::remove_dir_all(&tmp);
-    Ok(())
-}
+        // Match entries under the subpath (or all entries if subpath is empty).
+        let relative = if subpath.is_empty() {
+            // Strip leading `/`
+            &after_prefix[1..]
+        } else if let Some(rest) = after_prefix.strip_prefix(&prefix_with_subpath) {
+            rest
+        } else {
+            continue;
+        };
 
-/// Recursively copy `src` into `dest`, skipping `.git` directories.
-fn copy_dir_recursive(src: &std::path::Path, dest: &std::path::Path) -> Result<(), String> {
-    let entries = std::fs::read_dir(src)
-        .map_err(|e| format!("Failed to read {}: {e}", src.display()))?;
-
-    for entry in entries {
-        let entry = entry.map_err(|e| format!("Directory entry error: {e}"))?;
-        let name = entry.file_name();
-        if name == ".git" {
+        if relative.is_empty() {
             continue;
         }
 
-        let src_path = entry.path();
-        let dest_path = dest.join(&name);
-        let ft = entry.file_type().map_err(|e| format!("File type error: {e}"))?;
+        let out_path = dest.join(relative);
 
-        if ft.is_dir() {
-            std::fs::create_dir_all(&dest_path)
-                .map_err(|e| format!("Failed to create {}: {e}", dest_path.display()))?;
-            copy_dir_recursive(&src_path, &dest_path)?;
+        if entry.header().entry_type().is_dir() {
+            std::fs::create_dir_all(&out_path)
+                .map_err(|e| format!("Failed to create dir {}: {e}", out_path.display()))?;
         } else {
-            std::fs::copy(&src_path, &dest_path)
-                .map_err(|e| format!("Failed to copy {}: {e}", src_path.display()))?;
+            if let Some(parent) = out_path.parent() {
+                std::fs::create_dir_all(parent)
+                    .map_err(|e| format!("Failed to create dir for {}: {e}", out_path.display()))?;
+            }
+            let mut buf = Vec::new();
+            entry
+                .read_to_end(&mut buf)
+                .map_err(|e| format!("Failed to read {}: {e}", relative))?;
+            std::fs::write(&out_path, &buf)
+                .map_err(|e| format!("Failed to write {}: {e}", out_path.display()))?;
         }
     }
 
@@ -84,7 +90,7 @@ pub(super) fn download_http_course(
     base_url: &str,
     manifest_text: &str,
     manifest: &Manifest,
-    dest: &std::path::Path,
+    dest: &Path,
 ) -> Result<(), String> {
     std::fs::write(dest.join("handhold.yaml"), manifest_text)
         .map_err(|e| format!("Failed to write manifest: {e}"))?;
