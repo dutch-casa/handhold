@@ -1,62 +1,79 @@
+use std::process::Command;
+
 use super::types::Manifest;
 
-pub(super) fn download_github_tarball(
+/// Clone a GitHub repo (shallow, with LFS) and copy the course subpath to dest.
+/// LFS files (pre-baked audio cache) are fetched automatically if git-lfs is installed.
+pub(super) fn download_github_course(
     owner: &str,
     repo: &str,
     branch: &str,
     subpath: &str,
     dest: &std::path::Path,
 ) -> Result<(), String> {
-    let url = format!("https://github.com/{owner}/{repo}/archive/refs/heads/{branch}.tar.gz");
-    let resp = reqwest::blocking::get(&url)
-        .and_then(reqwest::blocking::Response::error_for_status)
-        .map_err(|e| format!("Failed to download tarball: {e}"))?;
-    let bytes = resp
-        .bytes()
-        .map_err(|e| format!("Failed to read tarball: {e}"))?;
+    let url = format!("https://github.com/{owner}/{repo}.git");
+    let tmp = std::env::temp_dir().join(format!("handhold-clone-{owner}-{repo}-{}", std::process::id()));
 
-    let decoder = flate2::read::GzDecoder::new(std::io::Cursor::new(&bytes));
-    let mut archive = tar::Archive::new(decoder);
+    if tmp.exists() {
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
 
-    let prefix = if subpath.is_empty() {
-        format!("{repo}-{branch}/")
-    } else {
-        format!("{repo}-{branch}/{subpath}/")
-    };
+    let mut cmd = Command::new("git");
+    cmd.args(["clone", "--depth", "1"]);
+    if branch != "HEAD" {
+        cmd.args(["--branch", branch]);
+    }
+    cmd.arg(&url)
+        .arg(&tmp)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
 
-    for entry in archive
-        .entries()
-        .map_err(|e| format!("Tar read error: {e}"))?
-    {
-        let mut entry = entry.map_err(|e| format!("Tar entry error: {e}"))?;
-        let entry_path = entry
-            .path()
-            .map_err(|e| format!("Tar path error: {e}"))?
-            .into_owned();
-        let entry_str = entry_path.to_string_lossy();
+    let output = cmd
+        .output()
+        .map_err(|e| format!("Failed to run git clone (is git installed?): {e}"))?;
 
-        if !entry_str.starts_with(&prefix) {
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let _ = std::fs::remove_dir_all(&tmp);
+        return Err(format!("git clone failed: {stderr}"));
+    }
+
+    // Copy the course subpath (or repo root) into dest, excluding .git.
+    let source = if subpath.is_empty() { tmp.clone() } else { tmp.join(subpath) };
+    if !source.exists() {
+        let _ = std::fs::remove_dir_all(&tmp);
+        return Err(format!("Subpath '{subpath}' not found in repository"));
+    }
+
+    copy_dir_recursive(&source, dest)?;
+
+    let _ = std::fs::remove_dir_all(&tmp);
+    Ok(())
+}
+
+/// Recursively copy `src` into `dest`, skipping `.git` directories.
+fn copy_dir_recursive(src: &std::path::Path, dest: &std::path::Path) -> Result<(), String> {
+    let entries = std::fs::read_dir(src)
+        .map_err(|e| format!("Failed to read {}: {e}", src.display()))?;
+
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("Directory entry error: {e}"))?;
+        let name = entry.file_name();
+        if name == ".git" {
             continue;
         }
 
-        let relative = &entry_str[prefix.len()..];
-        if relative.is_empty() {
-            continue;
-        }
+        let src_path = entry.path();
+        let dest_path = dest.join(&name);
+        let ft = entry.file_type().map_err(|e| format!("File type error: {e}"))?;
 
-        let out_path = dest.join(relative);
-        if entry.header().entry_type().is_dir() {
-            std::fs::create_dir_all(&out_path)
-                .map_err(|e| format!("Failed to create dir {}: {e}", out_path.display()))?;
+        if ft.is_dir() {
+            std::fs::create_dir_all(&dest_path)
+                .map_err(|e| format!("Failed to create {}: {e}", dest_path.display()))?;
+            copy_dir_recursive(&src_path, &dest_path)?;
         } else {
-            if let Some(parent) = out_path.parent() {
-                std::fs::create_dir_all(parent)
-                    .map_err(|e| format!("Failed to create parent dir: {e}"))?;
-            }
-            let mut outfile = std::fs::File::create(&out_path)
-                .map_err(|e| format!("Failed to create file {}: {e}", out_path.display()))?;
-            std::io::copy(&mut entry, &mut outfile)
-                .map_err(|e| format!("Failed to write file {}: {e}", out_path.display()))?;
+            std::fs::copy(&src_path, &dest_path)
+                .map_err(|e| format!("Failed to copy {}: {e}", src_path.display()))?;
         }
     }
 

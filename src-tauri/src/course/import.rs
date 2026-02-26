@@ -3,7 +3,7 @@ use crate::paths::courses_dir;
 use rusqlite::params;
 use tauri::State;
 
-use super::download::{download_github_tarball, download_http_course};
+use super::download::{download_github_course, download_http_course};
 use super::now_ms;
 use super::queries::read_course_row;
 use super::source::{
@@ -78,7 +78,7 @@ pub async fn course_import(db: State<'_, Db>, source_url: String) -> Result<Impo
             branch,
             path,
         } => {
-            if let Err(e) = download_github_tarball(owner, repo, branch, path, &dest) {
+            if let Err(e) = download_github_course(owner, repo, branch, path, &dest) {
                 let _ = std::fs::remove_dir_all(&dest);
                 return Ok(ImportResult::DownloadFailed { reason: e });
             }
