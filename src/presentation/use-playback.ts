@@ -13,11 +13,12 @@ import { playSound } from "@/sound/use-sound";
 //   1. Synthesis data arrives → load audio into player (useEffect on query data).
 //   2. Timeline changes       → create/dispose scheduler (useEffect on derived memo).
 //   3. Store state changes     → sync player/scheduler (zustand subscribe, not useEffect).
-// Plus background prefetch: while step N plays, synthesize step N+1 via useTTS.
 //
 // Sync invariant: Bridge 3 only starts playback when the loaded audio matches
 // the current narration text. On step transitions, the audio is stale until
 // Bridge 1 finishes loading. Bridge 1 auto-plays if status is "playing".
+//
+// Global TTS prefetch lives in useGlobalTtsPrefetch (AppContent level).
 
 export type UsePlaybackResult = {
   readonly playerRef: React.RefObject<AudioPlayer | null>;
@@ -172,14 +173,6 @@ export function usePlayback(): UsePlaybackResult {
       }
     });
   }, []);
-
-  // Prefetch next step's TTS while current step plays.
-  const nextNarrationText = usePresentationStore((s) => {
-    const next = s.steps[s.currentStepIndex + 1];
-    if (!next) return "";
-    return next.narration.map((n) => n.text).join(" ");
-  });
-  useTTS(nextNarrationText, bundlePath);
 
   return { playerRef, seekLocal };
 }

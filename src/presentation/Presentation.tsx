@@ -69,6 +69,7 @@ export function Presentation({
       bundlePath,
     });
     isInitialLoad.current = false;
+    return () => { usePresentationStore.getState().reset(); };
   }, [lesson, initialSlideIndex, completedSlideIds, bundlePath]);
 
   const { playerRef, seekLocal } = usePlayback();

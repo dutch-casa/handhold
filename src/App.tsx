@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-query";
 import { HotkeysProvider } from "@tanstack/react-hotkeys";
 import { invoke } from "@tauri-apps/api/core";
@@ -23,6 +23,7 @@ import {
 import { parseLab } from "@/lab/parse-lab";
 import { Lab } from "@/lab/Lab";
 import { CourseNavBar } from "@/course/CourseNavBar";
+import { useGlobalTtsPrefetch } from "@/tts/use-prefetch-tts";
 import type { CourseRecord, ManifestStep } from "@/types/browser";
 
 const queryClient = new QueryClient({
@@ -77,6 +78,7 @@ function AppContent() {
   const [pendingImportUrl, setPendingImportUrl] = useState<string | null>(null);
 
   useCoursesDirWatcher();
+  useGlobalTtsPrefetch(route.kind === "course" ? route.courseId : null);
 
   useEffect(() => {
     const promise = onOpenUrl((urls) => {
@@ -152,23 +154,27 @@ type CourseShellProps = {
 function CourseShell({ courseId, onBack }: CourseShellProps) {
   const { data: manifest, isLoading } = useCourseManifest(courseId);
   const { data: course } = useCourse(courseId);
-  const [stepIndex, setStepIndex] = useState(0);
+  const [rawStepIndex, setStepIndex] = useState(0);
   const completeStep = useCompleteStep();
+  const stepIndexRef = useRef(rawStepIndex);
 
   if (isLoading || !manifest) return null;
 
-  const currentStep = manifest.steps[stepIndex];
-  if (!currentStep) return null;
-
   const total = manifest.steps.length;
+  // Clamp to valid range — prevents blank screen if batched updates overshoot.
+  const stepIndex = Math.min(Math.max(0, rawStepIndex), total - 1);
+  if (stepIndex !== rawStepIndex) setStepIndex(stepIndex);
+  stepIndexRef.current = stepIndex;
+
+  const currentStep = manifest.steps[stepIndex]!;
   const canNext = stepIndex < total - 1;
 
   function handleNext() {
-    if (canNext) setStepIndex((i) => i + 1);
+    setStepIndex((i) => (i + 1 < total ? i + 1 : i));
   }
 
   function handleStepComplete() {
-    completeStep.mutate({ courseId, stepIndex });
+    completeStep.mutate({ courseId, stepIndex: stepIndexRef.current });
   }
 
   return (
@@ -179,7 +185,7 @@ function CourseShell({ courseId, onBack }: CourseShellProps) {
           canNext,
           canPrev: stepIndex > 0,
           next: handleNext,
-          prev: () => setStepIndex((i) => Math.max(i - 1, 0)),
+          prev: () => setStepIndex((i) => (i > 0 ? i - 1 : 0)),
           stepTitle: currentStep.title,
         }}
         onBack={onBack}
