@@ -15,10 +15,6 @@ export async function pathExists(path: string): Promise<boolean> {
   return invoke<boolean>("path_exists", { path });
 }
 
-export async function wipeDir(path: string): Promise<void> {
-  return invoke("wipe_dir", { path });
-}
-
 export async function scaffold(
   labPath: string,
   workspacePath: string,

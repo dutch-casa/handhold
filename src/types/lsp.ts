@@ -1,4 +1,6 @@
 export type LspLanguageId =
+  | "typescript" | "typescriptreact" | "javascript" | "javascriptreact"
+  | "html" | "css" | "json"
   | "go" | "python" | "rust" | "c" | "cpp"
   | "java" | "csharp" | "elixir" | "sql"
   | "shellscript" | "dockerfile" | "kotlin"

@@ -6,8 +6,6 @@ use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
 use tauri::ipc::Channel;
 
-use crate::container;
-
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase", tag = "event")]
 pub enum LspEvent {
@@ -66,16 +64,14 @@ fn read_lsp_messages(reader: impl Read, channel: Channel<LspEvent>) {
 
 #[tauri::command]
 pub async fn lsp_spawn(
-    container_name: String,
     server_binary: String,
     server_args: Vec<String>,
+    root_path: String,
     on_event: Channel<LspEvent>,
 ) -> Result<LspSession, String> {
-    let binary = container::resolve_binary()?;
-
-    let mut cmd = Command::new(binary);
-    cmd.args(["exec", "-i", &container_name, &server_binary]);
+    let mut cmd = Command::new(&server_binary);
     cmd.args(&server_args);
+    cmd.current_dir(&root_path);
     cmd.stdin(Stdio::piped());
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());

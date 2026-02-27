@@ -272,12 +272,10 @@ export function useLab(manifest: ParsedLab, workspacePath: string): Lab {
   // Seed Monaco models for cross-file IntelliSense
   useMonacoModels(workspacePath);
 
-  // LSP support for non-TypeScript languages (auto-detected from "dev" service)
-  const devContainer = manifest.services.find(s => s.name === "dev")?.name;
   useLsp({
-    containerName: devContainer,
+    workspacePath,
     rootUri: `file://${workspacePath}`,
-    enabled: lifecycle.kind === "ready" && devContainer !== undefined,
+    enabled: lifecycle.kind === "ready",
   });
 
   // Git gutter markers — one per pane

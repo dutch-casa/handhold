@@ -18,9 +18,9 @@ export type LspHandle = {
 };
 
 export async function spawnLsp(
-  containerName: string,
   serverBinary: string,
   serverArgs: readonly string[],
+  rootPath: string,
 ): Promise<LspHandle> {
   const messageListeners = new Set<(json: string) => void>();
   const exitListeners = new Set<(code: number) => void>();
@@ -42,9 +42,9 @@ export async function spawnLsp(
   };
 
   const { sessionId } = await invoke<{ sessionId: string }>("lsp_spawn", {
-    containerName,
     serverBinary,
     serverArgs: [...serverArgs],
+    rootPath,
     onEvent,
   });
 

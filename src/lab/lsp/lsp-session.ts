@@ -58,9 +58,9 @@ function extractCapabilities(result: unknown): ServerCapabilities {
 }
 
 type LspSessionOpts = {
-  readonly containerName: string;
   readonly serverBinary: string;
   readonly serverArgs: readonly string[];
+  readonly rootPath: string;
   readonly rootUri: string;
   readonly languageId: LspLanguageId;
   readonly onDiagnostics: (uri: string, diagnostics: readonly LspDiagnostic[]) => void;
@@ -89,9 +89,9 @@ export class LspSession {
 
     try {
       const handle = await spawnLsp(
-        this.opts.containerName,
         this.opts.serverBinary,
         this.opts.serverArgs,
+        this.opts.rootPath,
       );
       if (this.disposed) {
         handle.kill();

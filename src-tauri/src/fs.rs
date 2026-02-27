@@ -264,6 +264,38 @@ fn collect_ts_files(
 // Separate cap for .d.ts type definitions — loaded alongside project files
 const MAX_TYPE_BYTES: usize = 10 * 1024 * 1024; // 10 MB
 
+fn collect_dts_files(dir: &Path, files: &mut Vec<FileContent>, total_bytes: &mut usize) {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        if *total_bytes >= MAX_TYPE_BYTES {
+            return;
+        }
+        let path = entry.path();
+        let name = entry.file_name().to_string_lossy().to_string();
+        if path.is_dir() {
+            if name == "node_modules" || name.starts_with('.') {
+                continue;
+            }
+            collect_dts_files(&path, files, total_bytes);
+            continue;
+        }
+        let name = entry.file_name().to_string_lossy().to_string();
+        if !name.ends_with(".d.ts") {
+            continue;
+        }
+        let Ok(content) = fs::read_to_string(&path) else {
+            continue;
+        };
+        *total_bytes += content.len();
+        files.push(FileContent {
+            path: path.to_string_lossy().to_string(),
+            content,
+        });
+    }
+}
+
 #[tauri::command]
 pub async fn read_type_definitions(root: String) -> Result<Vec<FileContent>, String> {
     let root_path = Path::new(&root);
@@ -275,25 +307,23 @@ pub async fn read_type_definitions(root: String) -> Result<Vec<FileContent>, Str
     let mut files = Vec::new();
     let mut total_bytes: usize = 0;
 
-    // @types packages
+    // @types packages — read ALL .d.ts files in each package directory
+    // (e.g. @types/react has jsx-runtime.d.ts, global.d.ts, etc. alongside index.d.ts)
     if let Ok(entries) = fs::read_dir(node_modules.join("@types")) {
-        for entry in entries.flatten() {
+        for pkg_entry in entries.flatten() {
             if total_bytes >= MAX_TYPE_BYTES {
                 break;
             }
-            let path = entry.path().join("index.d.ts");
-            let Ok(content) = fs::read_to_string(&path) else {
+            let pkg_dir = pkg_entry.path();
+            if !pkg_dir.is_dir() {
                 continue;
-            };
-            total_bytes += content.len();
-            files.push(FileContent {
-                path: path.to_string_lossy().to_string(),
-                content,
-            });
+            }
+            collect_dts_files(&pkg_dir, &mut files, &mut total_bytes);
         }
     }
 
-    // Regular packages: package.json → types/typings field
+    // Regular packages that ship their own .d.ts files (vite, react, etc.)
+    // Only scan packages that declare types via package.json types/typings field.
     let Ok(entries) = fs::read_dir(&node_modules) else {
         return Ok(files);
     };
@@ -302,33 +332,30 @@ pub async fn read_type_definitions(root: String) -> Result<Vec<FileContent>, Str
             break;
         }
         let name = entry.file_name().to_string_lossy().to_string();
-        if name.starts_with('.') || name == "@types" {
+        if name.starts_with('.') || name == "@types" || name == ".bin" {
             continue;
         }
 
-        let Ok(pkg_content) = fs::read_to_string(entry.path().join("package.json")) else {
+        let pkg_dir = entry.path();
+        if !pkg_dir.is_dir() {
+            continue;
+        }
+
+        let Ok(pkg_content) = fs::read_to_string(pkg_dir.join("package.json")) else {
             continue;
         };
         let Ok(pkg) = serde_json::from_str::<serde_json::Value>(&pkg_content) else {
             continue;
         };
-        let Some(types_rel) = pkg
-            .get("types")
-            .or_else(|| pkg.get("typings"))
-            .and_then(|v| v.as_str())
-        else {
-            continue;
-        };
 
-        let types_path = entry.path().join(types_rel);
-        let Ok(content) = fs::read_to_string(&types_path) else {
+        // Only load .d.ts files from packages that declare type exports
+        if pkg.get("types").and_then(|v| v.as_str()).is_none()
+            && pkg.get("typings").and_then(|v| v.as_str()).is_none()
+        {
             continue;
-        };
-        total_bytes += content.len();
-        files.push(FileContent {
-            path: types_path.to_string_lossy().to_string(),
-            content,
-        });
+        }
+
+        collect_dts_files(&pkg_dir, &mut files, &mut total_bytes);
     }
 
     Ok(files)

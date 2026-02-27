@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
-import { scaffold, pathExists, wipeDir, isProvisioned, markProvisioned } from "@/lab/tauri/workspace";
+import { scaffold, pathExists, isProvisioned, markProvisioned } from "@/lab/tauri/workspace";
 import { exec } from "@/lab/tauri/runner";
 import { composeUp, composeDown } from "@/lab/tauri/container";
 import { generateComposeYaml } from "@/lab/compose";
@@ -53,32 +53,23 @@ async function provision(
   const scaffoldPath = `${lab.filesPath}/scaffold`;
   const hasScaffold = await pathExists(scaffoldPath);
 
-  // fresh: always wipe + scaffold + setup.
-  // continue: DB-backed first-run detection — deterministic, no heuristic.
-  const needsSetup = lab.workspace === "fresh" || !(await isProvisioned(workspacePath));
+  // Both modes use DB-backed first-run detection.
+  // fresh = standalone lab (own workspace), continue = shares previous lab's workspace.
+  // Neither wipes on reopen — user progress is always preserved.
+  const needsSetup = !(await isProvisioned(workspacePath));
 
-  if (lab.workspace === "fresh") {
-    appendLog("Wiping workspace...");
-    await wipeDir(workspacePath);
-    if (hasScaffold) {
-      appendLog("Scaffolding workspace...");
-      await scaffold(scaffoldPath, workspacePath);
-      appendLog("Workspace scaffolded.");
-    }
-  } else {
-    if (needsSetup && hasScaffold) {
-      appendLog("Scaffolding workspace (first run)...");
-      await scaffold(scaffoldPath, workspacePath);
-      appendLog("Workspace scaffolded.");
-    }
+  if (needsSetup && hasScaffold) {
+    appendLog("Scaffolding workspace...");
+    await scaffold(scaffoldPath, workspacePath);
+    appendLog("Workspace scaffolded.");
+  }
 
-    const overlayPath = `${lab.filesPath}/overlay`;
-    const hasOverlay = await pathExists(overlayPath);
-    if (hasOverlay) {
-      appendLog("Applying overlay...");
-      await scaffold(overlayPath, workspacePath);
-      appendLog("Overlay applied.");
-    }
+  const overlayPath = `${lab.filesPath}/overlay`;
+  const hasOverlay = await pathExists(overlayPath);
+  if (hasOverlay) {
+    appendLog("Applying overlay...");
+    await scaffold(overlayPath, workspacePath);
+    appendLog("Overlay applied.");
   }
 
   if (lab.services.length > 0) {
