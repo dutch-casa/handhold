@@ -87,6 +87,8 @@ pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .setup(|app| {
             let menu = build_menu(app.handle())?;
             app.set_menu(menu)?;
@@ -123,6 +125,7 @@ pub fn run() {
             pty::pty_kill,
             // Command execution
             runner::run_command,
+            runner::check_dependency,
             // Settings persistence
             settings::load_settings,
             settings::save_settings,

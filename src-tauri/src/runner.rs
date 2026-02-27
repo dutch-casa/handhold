@@ -3,6 +3,12 @@ use std::io::{BufRead, BufReader};
 use std::process::{Command, Stdio};
 use tauri::ipc::Channel;
 
+// Returns (program, flag) for the platform's non-interactive shell.
+#[cfg(target_os = "windows")]
+fn shell() -> (&'static str, &'static str) { ("cmd", "/C") }
+#[cfg(not(target_os = "windows"))]
+fn shell() -> (&'static str, &'static str) { ("sh", "-c") }
+
 /// Events streamed during command execution
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase", tag = "event", content = "data")]
@@ -26,8 +32,9 @@ pub async fn run_command(
     env: Vec<(String, String)>,
     on_output: Channel<RunnerEvent>,
 ) -> Result<RunResult, String> {
-    let mut child = Command::new("sh")
-        .args(["-c", &command])
+    let (prog, flag) = shell();
+    let mut child = Command::new(prog)
+        .args([flag, &command])
         .current_dir(&cwd)
         .envs(env)
         .stdout(Stdio::piped())
@@ -68,4 +75,23 @@ pub async fn run_command(
     Ok(RunResult {
         exit_code: status.code().unwrap_or(-1),
     })
+}
+
+/// Probes whether a CLI tool is available — returns true if exit code is 0.
+/// Silent: stdout and stderr are discarded.
+#[tauri::command]
+pub async fn check_dependency(cmd: String) -> bool {
+    let (prog, flag) = shell();
+    dirs::home_dir()
+        .map(|home| {
+            Command::new(prog)
+                .args([flag, &cmd])
+                .current_dir(&home)
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false)
+        })
+        .unwrap_or(false)
 }
