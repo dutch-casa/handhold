@@ -288,7 +288,6 @@ function LabSection({ lab }: { readonly lab: EditableLab }) {
         <Row label="Test command" value={lab.testCommand || "(none)"} />
         <Row label="Services" value={lab.services.length} />
         <Row label="Setup commands" value={lab.setup.length} />
-        <Row label="Start commands" value={lab.start.length} />
         <Row label="Open files" value={lab.openFiles.length} />
       </SectionBody>
     </>

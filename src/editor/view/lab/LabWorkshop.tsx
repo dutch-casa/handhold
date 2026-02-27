@@ -115,7 +115,6 @@ function useWorkshopEditor(labDirPath: string): WorkshopEditor {
     openFiles: [],
     services: [],
     setup: [],
-    start: [],
   }), [labDirPath]);
 
   const store = useMemo(() => createLabStore(manifest), [manifest]);

@@ -153,8 +153,6 @@ pub struct RawLabConfig {
     pub services: Vec<serde_json::Value>,
     #[serde(default)]
     pub setup: Vec<String>,
-    #[serde(default)]
-    pub start: Vec<String>,
 }
 
 #[derive(Serialize)]

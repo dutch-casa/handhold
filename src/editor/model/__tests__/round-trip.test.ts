@@ -506,7 +506,6 @@ describe("serializeLab", () => {
         },
       ],
       setup: ["bun install"],
-      start: ["bun run dev"],
       scaffoldPath: "files/",
     };
 
@@ -521,8 +520,6 @@ describe("serializeLab", () => {
     expect(result.yaml).toContain("  - bun install");
     expect(result.yaml).toContain("open:");
     expect(result.yaml).toContain("  - src/server.ts");
-    expect(result.yaml).toContain("start:");
-    expect(result.yaml).toContain("  - bun run dev");
     expect(result.instructions).toBe("# Step 1\n\nCreate the server.");
   });
 });
@@ -550,7 +547,6 @@ describe("serializeCourse", () => {
             openFiles: [],
             services: [],
             setup: [],
-            start: [],
             scaffoldPath: "",
           },
         },

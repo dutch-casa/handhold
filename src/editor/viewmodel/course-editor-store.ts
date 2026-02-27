@@ -184,7 +184,6 @@ export const useCourseEditorStore = create<CourseEditorStore>((set, get) => ({
         openFiles: [],
         services: [],
         setup: [],
-        start: [],
         scaffoldPath: "",
       },
     };

@@ -23,9 +23,6 @@ type LabEditorActions = {
   addSetupCommand(cmd: string): void;
   removeSetupCommand(index: number): void;
   reorderSetupCommand(fromIndex: number, toIndex: number): void;
-  addStartCommand(cmd: string): void;
-  removeStartCommand(index: number): void;
-  reorderStartCommand(fromIndex: number, toIndex: number): void;
   addOpenFile(path: string): void;
   removeOpenFile(path: string): void;
   updateScaffoldPath(path: string): void;
@@ -117,33 +114,6 @@ export function createLabEditorStore(
         if (toIndex < 0 || toIndex >= setup.length) return s;
         const [item] = setup.splice(fromIndex, 1);
         setup.splice(toIndex, 0, item!);
-        return { lab: { ...s.lab } };
-      });
-    },
-
-    addStartCommand: (cmd) => {
-      set((s) => {
-        s.lab.start.push(cmd);
-        return { lab: { ...s.lab } };
-      });
-    },
-
-    removeStartCommand: (index) => {
-      set((s) => {
-        if (index < 0 || index >= s.lab.start.length) return s;
-        s.lab.start.splice(index, 1);
-        return { lab: { ...s.lab } };
-      });
-    },
-
-    reorderStartCommand: (fromIndex, toIndex) => {
-      set((s) => {
-        const { start } = s.lab;
-        if (fromIndex === toIndex) return s;
-        if (fromIndex < 0 || fromIndex >= start.length) return s;
-        if (toIndex < 0 || toIndex >= start.length) return s;
-        const [item] = start.splice(fromIndex, 1);
-        start.splice(toIndex, 0, item!);
         return { lab: { ...s.lab } };
       });
     },

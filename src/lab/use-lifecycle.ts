@@ -125,14 +125,6 @@ async function provision(
     appendLog("Workspace already provisioned — skipping setup.");
   }
 
-  for (const script of lab.start) {
-    appendLog(`$ ${script}`);
-    const exitCode = await exec(script, workspacePath, appendLog);
-    if (exitCode !== 0) {
-      throw new Error(`Start script failed (exit ${exitCode}): ${script}`);
-    }
-  }
-
   // Post-provisioning: open files and spawn terminal inside queryFn
   // so we don't need separate useEffects for one-time init.
   init.openInitialFiles();

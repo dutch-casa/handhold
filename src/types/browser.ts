@@ -64,7 +64,6 @@ export type RawLabConfig = {
   readonly open: readonly string[];
   readonly services: readonly unknown[];
   readonly setup: readonly string[];
-  readonly start: readonly string[];
 };
 
 /** Everything Rust reads from a lab directory — instructions, scaffold info, config. */

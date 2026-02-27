@@ -242,7 +242,6 @@ export type EditableLab = {
   openFiles: string[];
   services: EditableService[];
   setup: string[];
-  start: string[];
   scaffoldPath: string;
 };
 

@@ -32,8 +32,6 @@ setup:                    # Commands run after scaffold is copied
   - node seed.js
 open:                     # Files to open in the editor on load
   - src/index.js
-start:                    # Optional: commands to keep running (dev server, etc.)
-  - npm run dev
 ```
 
 ### INSTRUCTIONS.md
@@ -228,17 +226,6 @@ await pool.query(`
 // Bad: CREATE TABLE (fails if already exists)
 await pool.query(`CREATE TABLE users (...)`);
 ```
-
-## Start Commands
-
-Optional long-running processes:
-
-```yaml
-start:
-  - npm run dev
-```
-
-Start commands run after setup completes. They keep running in the background. Use for dev servers, file watchers, or any process the learner needs running.
 
 ## Open Files
 

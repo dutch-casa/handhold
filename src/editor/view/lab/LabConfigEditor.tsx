@@ -1,5 +1,5 @@
 // LabConfigEditor — structured form for lab configuration.
-// Renders workspace mode, test command, setup/start commands, and open files.
+// Renders workspace mode, test command, setup commands, and open files.
 // Wired to the LabEditorStore for all mutations.
 
 import { useCallback, useRef, useState } from "react";
@@ -256,15 +256,6 @@ function LabConfigForm({ lab }: { readonly lab: EditableLab }) {
         onAdd={store.addSetupCommand}
         onRemove={store.removeSetupCommand}
         onReorder={store.reorderSetupCommand}
-      />
-
-      {/* Start commands */}
-      <CommandList
-        label="Start Commands"
-        items={store.lab.start}
-        onAdd={store.addStartCommand}
-        onRemove={store.removeStartCommand}
-        onReorder={store.reorderStartCommand}
       />
 
       {/* Open files */}

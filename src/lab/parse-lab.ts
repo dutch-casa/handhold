@@ -14,6 +14,5 @@ export function parseLab(title: string, data: LabData): ParsedLab {
     openFiles: data.config.open,
     services: resolveServices(data.config.services as readonly RawServiceEntry[]),
     setup: data.config.setup,
-    start: data.config.start,
   };
 }

@@ -24,7 +24,6 @@ export type ParsedLab = {
   readonly openFiles: readonly string[];
   readonly services: readonly ResolvedService[];
   readonly setup: readonly string[];
-  readonly start: readonly string[];
 };
 
 // --- Lifecycle typestate: each state carries only data valid at that phase ---

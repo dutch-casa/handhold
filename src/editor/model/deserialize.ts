@@ -138,7 +138,6 @@ export function deserializeLab(lab: ParsedLab): EditableLab {
     openFiles: [...lab.openFiles],
     services: lab.services.map(deserializeService),
     setup: [...lab.setup],
-    start: [...lab.start],
     scaffoldPath: lab.filesPath,
   };
 }

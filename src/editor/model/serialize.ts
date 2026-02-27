@@ -94,13 +94,6 @@ export function serializeLab(lab: EditableLab): {
     }
   }
 
-  if (lab.start.length > 0) {
-    yamlLines.push("start:");
-    for (const cmd of lab.start) {
-      yamlLines.push(`  - ${cmd}`);
-    }
-  }
-
   return {
     yaml: yamlLines.join("\n"),
     instructions: lab.instructions,
