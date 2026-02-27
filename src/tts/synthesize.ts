@@ -42,16 +42,31 @@ export type SynthesisResult = {
 // --- Public API ---
 // Invoke the Rust TTS backend and collect all events into a structured result.
 
+// Prevent Tauri "Couldn't find callback id" warnings by holding a strong
+// reference to every in-flight Channel until the Rust command finishes.
+// Without this, React Query cancellation can GC the Channel while koko
+// subprocesses are still running, causing Rust to send to a dead callback ID.
+const liveChannels = new Set<Channel<TTSEvent>>();
+
 export async function synthesize(
   text: string,
   bundlePath?: string,
 ): Promise<SynthesisResult> {
+  const onEvent = new Channel<TTSEvent>();
+  liveChannels.add(onEvent);
+
+  const invokePromise = invoke("synthesize", {
+    text,
+    bundlePath: bundlePath ?? null,
+    onEvent,
+  });
+  invokePromise.finally(() => { liveChannels.delete(onEvent); });
+
   return new Promise((resolve, reject) => {
     const wordTimings: WordTiming[] = [];
     let audioBase64 = "";
     let durationMs = 0;
 
-    const onEvent = new Channel<TTSEvent>();
     onEvent.onmessage = (event) => {
       switch (event.event) {
         case "wordBoundary":
@@ -72,11 +87,7 @@ export async function synthesize(
       }
     };
 
-    invoke("synthesize", {
-      text,
-      bundlePath: bundlePath ?? null,
-      onEvent,
-    }).catch(reject);
+    invokePromise.catch(reject);
   });
 }
 

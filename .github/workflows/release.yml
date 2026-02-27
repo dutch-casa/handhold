@@ -57,14 +57,21 @@ jobs:
           # Add to PATH so Rust build scripts can find sh, make, etc.
           echo "C:\msys64\usr\bin" >> $env:GITHUB_PATH
 
-      # --- Rust toolchain ---
+      # --- Rust toolchain + caching ---
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
+      - uses: mozilla-actions/sccache-action@v0.0.9
+      - run: |
+          echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+          echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
+        shell: bash
+
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          cache-on-failure: true
 
       # --- Build koko sidecar ---
       - name: Build koko (Unix)
@@ -117,10 +124,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_OPTIONS: "--max-old-space-size=4096"
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: v__VERSION__
           releaseName: "Handhold v__VERSION__"
           releaseBody: "See assets below to download and install."
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
+          includeUpdaterJson: true
           args: ${{ matrix.args }}

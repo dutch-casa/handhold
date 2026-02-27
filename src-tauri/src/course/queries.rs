@@ -312,7 +312,12 @@ pub async fn course_read_lab(
 
     let lab_dir_path = lab_dir.to_string_lossy().to_string();
 
-    let workspace_path = workspaces_dir().join(&id);
+    // Each lab gets its own workspace subdirectory so scaffolds don't collide.
+    let lab_slug = PathBuf::from(&step_path)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| step_path.replace('/', "_"));
+    let workspace_path = workspaces_dir().join(&id).join(&lab_slug);
     std::fs::create_dir_all(&workspace_path)
         .map_err(|e| format!("Failed to create workspace directory: {e}"))?;
     let workspace_path = workspace_path.to_string_lossy().to_string();

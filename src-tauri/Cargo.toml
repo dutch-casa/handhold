@@ -27,11 +27,16 @@ serde_yml = "0.0.12"
 sha2 = "0.10"
 tokio = { version = "1", features = ["time"] }
 regex = "1"
-swc_common = "18"
-swc_ecma_parser = "33"
-swc_ecma_ast = "20"
-swc_ecma_transforms_react = "40"
-swc_ecma_codegen = "23"
-swc_ecma_visit = "20"
+oxc_allocator = "0.115"
+oxc_parser = "0.115"
+oxc_semantic = "0.115"
+oxc_transformer = "0.115"
+oxc_codegen = "0.115"
+oxc_span = "0.115"
 tar = "0.4"
 flate2 = "1"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+
+[profile.release]
+codegen-units = 16

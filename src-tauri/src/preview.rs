@@ -1,73 +1,55 @@
-use swc_common::{sync::Lrc, FileName, Mark, SourceMap, GLOBALS};
-use swc_ecma_ast::EsVersion;
-use swc_ecma_codegen::{text_writer::JsWriter, Emitter};
-use swc_ecma_parser::{parse_file_as_module, EsSyntax, Syntax};
-use swc_ecma_transforms_react::{jsx, Options, Runtime};
-use swc_ecma_visit::VisitMutWith;
+use std::path::Path;
+
+use oxc_allocator::Allocator;
+use oxc_codegen::Codegen;
+use oxc_parser::Parser;
+use oxc_semantic::SemanticBuilder;
+use oxc_span::SourceType;
+use oxc_transformer::{JsxOptions, JsxRuntime, TransformOptions, Transformer};
 
 static REACT_RUNTIME: &str = include_str!("../vendor/react.production.min.js");
 static REACT_DOM_RUNTIME: &str = include_str!("../vendor/react-dom.production.min.js");
 
 #[tauri::command]
 pub async fn compile_jsx(source: String) -> Result<String, String> {
-    // SWC globals (hygiene marks) require a thread-local scope.
-    GLOBALS.set(&Default::default(), || compile_jsx_inner(&source))
+    compile_jsx_inner(&source)
 }
 
 fn compile_jsx_inner(source: &str) -> Result<String, String> {
-    let cm: Lrc<SourceMap> = Default::default();
-    let fm = cm.new_source_file(Lrc::new(FileName::Anon), source.to_string());
+    let allocator = Allocator::default();
+    let source_type = SourceType::jsx();
 
-    let mut errors = Vec::new();
-    let mut module = parse_file_as_module(
-        &fm,
-        Syntax::Es(EsSyntax {
-            jsx: true,
-            ..Default::default()
-        }),
-        EsVersion::Es2022,
-        None,
-        &mut errors,
-    )
-    .map_err(|e| format!("Parse error: {e:?}"))?;
-
-    if !errors.is_empty() {
-        return Err(format!("Parse errors: {errors:?}"));
+    let parsed = Parser::new(&allocator, source, source_type).parse();
+    if parsed.panicked {
+        let msgs: Vec<String> = parsed.errors.iter().map(|e| e.to_string()).collect();
+        return Err(format!("Parse errors: {}", msgs.join(", ")));
     }
+    let mut program = parsed.program;
 
-    let top_level_mark = Mark::new();
-    let unresolved_mark = Mark::new();
+    let semantic = SemanticBuilder::new().build(&program);
+    let scoping = semantic.semantic.into_scoping();
 
-    let mut transform = jsx(
-        cm.clone(),
-        None::<swc_common::comments::SingleThreadedComments>,
-        Options {
-            runtime: Some(Runtime::Classic),
-            ..Default::default()
+    let options = TransformOptions {
+        jsx: JsxOptions {
+            runtime: JsxRuntime::Classic,
+            ..JsxOptions::default()
         },
-        top_level_mark,
-        unresolved_mark,
-    );
+        ..TransformOptions::default()
+    };
 
-    module.visit_mut_with(&mut transform);
+    let transformer = Transformer::new(&allocator, Path::new("preview.jsx"), &options);
+    let result = transformer.build_with_scoping(scoping, &mut program);
 
-    let mut buf = Vec::new();
-    {
-        let wr = JsWriter::new(cm.clone(), "\n", &mut buf, None);
-        let mut emitter = Emitter {
-            cfg: Default::default(),
-            cm,
-            comments: None,
-            wr,
-        };
-        emitter
-            .emit_module(&module)
-            .map_err(|e| format!("Codegen error: {e:?}"))?;
+    if !result.errors.is_empty() {
+        let msgs: Vec<String> = result.errors.iter().map(|e| e.to_string()).collect();
+        return Err(format!("Transform errors: {}", msgs.join(", ")));
     }
 
-    let js = String::from_utf8(buf).map_err(|e| format!("UTF-8 error: {e}"))?;
+    let output = Codegen::new()
+        .with_scoping(Some(result.scoping))
+        .build(&program);
 
-    Ok(wrap_html(&js))
+    Ok(wrap_html(&output.code))
 }
 
 fn wrap_html(compiled_js: &str) -> String {

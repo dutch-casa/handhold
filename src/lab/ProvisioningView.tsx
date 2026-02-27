@@ -7,9 +7,10 @@ import type { LabProvisioning, LabFailed } from "@/types/lab";
 
 type ProvisioningViewProps = {
   readonly state: LabProvisioning | LabFailed;
+  readonly onRetry?: (() => void) | undefined;
 };
 
-export function ProvisioningView({ state }: ProvisioningViewProps) {
+export function ProvisioningView({ state, onRetry }: ProvisioningViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -47,9 +48,9 @@ export function ProvisioningView({ state }: ProvisioningViewProps) {
         </div>
       ) : null}
 
-      {failed ? (
+      {failed && onRetry !== undefined ? (
         <button
-          onClick={() => window.location.reload()}
+          onClick={onRetry}
           className="press focus-ring rounded-md border border-border px-4 py-2 text-sm transition-colors hover:bg-muted"
         >
           Retry

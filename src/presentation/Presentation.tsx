@@ -69,8 +69,13 @@ export function Presentation({
       bundlePath,
     });
     isInitialLoad.current = false;
-    return () => { usePresentationStore.getState().reset(); };
-  }, [lesson, initialSlideIndex, completedSlideIds, bundlePath]);
+    // initialSlideIndex and completedSlideIds are intentionally excluded:
+    // they are initialization inputs consumed on first mount only.
+    // Including them causes loadLesson to re-fire on every slide-save
+    // mutation (which updates the React Query cache → new prop reference),
+    // producing a visible flash as the store is overwritten mid-navigation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lesson, bundlePath]);
 
   const { playerRef, seekLocal } = usePlayback();
 

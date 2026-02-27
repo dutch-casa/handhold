@@ -60,7 +60,7 @@ export function Browser({ onOpen, initialImportUrl, onImportHandled }: BrowserPr
 
   return (
     <Ctx value={{ onOpen }}>
-      <div className="flex h-screen flex-col bg-background">
+      <div className="flex h-full flex-col bg-background">
         <header className="flex shrink-0 items-center gap-3 border-b border-border px-6 py-4">
           <img src={LogoSvg} alt="Handhold" className="size-8 shrink-0" />
           <div className="relative flex-1 max-w-md">

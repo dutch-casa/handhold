@@ -14,6 +14,7 @@ import {
   useCourseManifest,
   useCourseStep,
   useCompleteStep,
+  useStepProgress,
   useSlidePosition,
   useSaveSlidePosition,
   useSlideCompletions,
@@ -24,6 +25,7 @@ import { parseLab } from "@/lab/parse-lab";
 import { Lab } from "@/lab/Lab";
 import { CourseNavBar } from "@/course/CourseNavBar";
 import { useGlobalTtsPrefetch } from "@/tts/use-prefetch-tts";
+import { UpdateBanner } from "@/updater/UpdateBanner";
 import type { CourseRecord, ManifestStep } from "@/types/browser";
 
 const queryClient = new QueryClient({
@@ -124,26 +126,28 @@ function AppContent() {
 
   if (isLoading) return null;
 
-  switch (route.kind) {
-    case "browser":
-      return (
-        <Browser
-          onOpen={(course: CourseRecord) =>
-            navigate({ kind: "course", courseId: course.id, stepIndex: 0 })
-          }
-          initialImportUrl={pendingImportUrl ?? undefined}
-          onImportHandled={() => setPendingImportUrl(null)}
-        />
-      );
-    case "course":
-      return (
-        <CourseShell
-          key={route.courseId}
-          courseId={route.courseId}
-          onBack={() => navigate({ kind: "browser" })}
-        />
-      );
-  }
+  return (
+    <div className="flex flex-col h-screen">
+      <UpdateBanner />
+      <div className="flex-1 min-h-0">
+        {route.kind === "browser" ? (
+          <Browser
+            onOpen={(course: CourseRecord) =>
+              navigate({ kind: "course", courseId: course.id, stepIndex: 0 })
+            }
+            initialImportUrl={pendingImportUrl ?? undefined}
+            onImportHandled={() => setPendingImportUrl(null)}
+          />
+        ) : (
+          <CourseShell
+            key={route.courseId}
+            courseId={route.courseId}
+            onBack={() => navigate({ kind: "browser" })}
+          />
+        )}
+      </div>
+    </div>
+  );
 }
 
 type CourseShellProps = {
@@ -154,9 +158,15 @@ type CourseShellProps = {
 function CourseShell({ courseId, onBack }: CourseShellProps) {
   const { data: manifest, isLoading } = useCourseManifest(courseId);
   const { data: course } = useCourse(courseId);
+  const { data: progressIndices } = useStepProgress(courseId);
   const [rawStepIndex, setStepIndex] = useState(0);
   const completeStep = useCompleteStep();
   const stepIndexRef = useRef(rawStepIndex);
+
+  const completedSteps = useMemo(
+    () => new Set(progressIndices ?? []),
+    [progressIndices],
+  );
 
   if (isLoading || !manifest) return null;
 
@@ -178,7 +188,7 @@ function CourseShell({ courseId, onBack }: CourseShellProps) {
   }
 
   return (
-    <div className="flex h-screen flex-col">
+    <div className="flex h-full flex-col">
       <CourseNavBar
         nav={{
           progress: { current: stepIndex + 1, total },
@@ -187,6 +197,9 @@ function CourseShell({ courseId, onBack }: CourseShellProps) {
           next: handleNext,
           prev: () => setStepIndex((i) => (i > 0 ? i - 1 : 0)),
           stepTitle: currentStep.title,
+          steps: manifest.steps,
+          goTo: setStepIndex,
+          completedSteps,
         }}
         onBack={onBack}
       />

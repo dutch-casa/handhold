@@ -109,7 +109,7 @@ export function Lab({ manifest, workspacePath, nav }: LabProps) {
   }
 
   if (lifecycle.kind === "provisioning" || lifecycle.kind === "failed") {
-    return <ProvisioningView state={lifecycle} />;
+    return <ProvisioningView state={lifecycle} onRetry={retryProvision} />;
   }
 
   if (lifecycle.kind !== "ready") {
