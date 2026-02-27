@@ -39,12 +39,22 @@ export type SlidePosition = {
   readonly slideCount: number | null;
 };
 
+/** A course dependency entry — install command already resolved for the current OS. */
+export type CourseDependency = {
+  readonly name: string;
+  /** Shell command to probe whether the tool exists (e.g. "node --version"). */
+  readonly check: string;
+  /** Install command for this platform, or null if not provided. */
+  readonly install: string | null;
+};
+
 /** Parsed handhold.yaml — drives course loading from disk. */
 export type CourseManifest = {
   readonly title: string;
   readonly description: string;
   readonly tags: readonly string[];
   readonly steps: readonly ManifestStep[];
+  readonly dependencies: readonly CourseDependency[];
 };
 
 /** Raw lab.yaml config — every field defaults to empty. TS resolves presets. */

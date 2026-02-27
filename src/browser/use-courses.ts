@@ -1,5 +1,6 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as api from "@/browser/tauri";
+import type { CourseDependency } from "@/types/browser";
 
 const KEYS = {
   courses: ["courses"] as const,
@@ -176,5 +177,17 @@ export function useCompleteStep() {
       qc.invalidateQueries({ queryKey: KEYS.progress(courseId) });
       qc.invalidateQueries({ queryKey: KEYS.courses });
     },
+  });
+}
+
+/** Probes each dependency. Re-checks on every mount (staleTime: 0). */
+export function useDepChecks(deps: readonly CourseDependency[]) {
+  return useQueries({
+    queries: deps.map((dep) => ({
+      queryKey: ["dep-check", dep.check] as const,
+      queryFn: () => api.checkDependency(dep.check),
+      staleTime: 0,
+      retry: false,
+    })),
   });
 }

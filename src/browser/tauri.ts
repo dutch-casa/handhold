@@ -90,3 +90,6 @@ export const slideComplete = (courseId: string, stepIndex: number, slideId: stri
 
 export const slideCompletions = (courseId: string, stepIndex: number) =>
   invoke<string[]>("slide_completions", { courseId, stepIndex });
+
+export const checkDependency = (cmd: string) =>
+  invoke<boolean>("check_dependency", { cmd });
