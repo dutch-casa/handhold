@@ -44,7 +44,7 @@ pub enum Route {
 /// Raw dependency entry from handhold.yaml.
 /// install keys are std::env::consts::OS values: "macos", "linux", "windows".
 #[derive(Deserialize)]
-pub(super) struct ManifestDependency {
+struct ManifestDependency {
     name: String,
     check: String,
     #[serde(default)]
@@ -78,7 +78,7 @@ pub(super) struct Manifest {
     pub tags: Vec<String>,
     pub steps: Vec<ManifestStep>,
     #[serde(default)]
-    pub(super) dependencies: Vec<ManifestDependency>,
+    dependencies: Vec<ManifestDependency>,
 }
 
 impl Manifest {
