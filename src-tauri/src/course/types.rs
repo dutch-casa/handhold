@@ -41,6 +41,35 @@ pub enum Route {
     },
 }
 
+/// Raw dependency entry from handhold.yaml.
+/// install keys are std::env::consts::OS values: "macos", "linux", "windows".
+#[derive(Deserialize)]
+pub(super) struct ManifestDependency {
+    name: String,
+    check: String,
+    #[serde(default)]
+    install: std::collections::HashMap<String, String>,
+}
+
+impl ManifestDependency {
+    /// Resolves the install command for the current platform.
+    /// Returns None when no key matches — Install button is hidden on the frontend.
+    fn into_public(self) -> CourseDependency {
+        let install = self.install.get(std::env::consts::OS).cloned();
+        CourseDependency { name: self.name, check: self.check, install }
+    }
+}
+
+/// Platform-resolved dependency — frontend never sees OS keys.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CourseDependency {
+    pub name: String,
+    pub check: String,
+    /// None when no install command exists for this platform.
+    pub install: Option<String>,
+}
+
 #[derive(Deserialize)]
 pub(super) struct Manifest {
     pub title: String,
@@ -48,6 +77,8 @@ pub(super) struct Manifest {
     #[serde(default)]
     pub tags: Vec<String>,
     pub steps: Vec<ManifestStep>,
+    #[serde(default)]
+    pub(super) dependencies: Vec<ManifestDependency>,
 }
 
 impl Manifest {
@@ -57,6 +88,7 @@ impl Manifest {
             description: self.description,
             tags: self.tags,
             steps: self.steps,
+            dependencies: self.dependencies.into_iter().map(|d| d.into_public()).collect(),
         }
     }
 }
@@ -83,6 +115,7 @@ pub struct CourseManifest {
     pub description: String,
     pub tags: Vec<String>,
     pub steps: Vec<ManifestStep>,
+    pub dependencies: Vec<CourseDependency>,
 }
 
 #[derive(Serialize, Deserialize)]
