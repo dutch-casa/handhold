@@ -93,3 +93,5 @@ export const slideCompletions = (courseId: string, stepIndex: number) =>
 
 export const checkDependency = (cmd: string) =>
   invoke<boolean>("check_dependency", { cmd });
+
+export const homeDirPath = () => invoke<string>("home_dir_path");

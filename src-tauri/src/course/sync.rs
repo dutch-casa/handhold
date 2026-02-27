@@ -16,6 +16,16 @@ pub async fn courses_dir_path() -> Result<String, String> {
     Ok(dir.to_string_lossy().to_string())
 }
 
+/// Returns the user home directory as a string for use as shell cwd.
+#[tauri::command]
+pub async fn home_dir_path() -> String {
+    // dirs::home_dir() is already used by paths.rs in this crate
+    dirs::home_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("/"))
+        .to_string_lossy()
+        .into_owned()
+}
+
 #[tauri::command]
 pub async fn course_sync(db: State<'_, Db>) -> Result<SyncResult, String> {
     let dir = courses_dir();

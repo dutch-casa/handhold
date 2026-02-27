@@ -180,6 +180,14 @@ export function useCompleteStep() {
   });
 }
 
+export function useHomeDirPath() {
+  return useQuery({
+    queryKey: ["home-dir"] as const,
+    queryFn: api.homeDirPath,
+    staleTime: Infinity,
+  });
+}
+
 /** Probes each dependency. Re-checks on every mount (staleTime: 0). */
 export function useDepChecks(deps: readonly CourseDependency[]) {
   return useQueries({

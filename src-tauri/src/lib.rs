@@ -169,6 +169,7 @@ pub fn run() {
             preview::compile_jsx,
             // Course directory sync
             course::courses_dir_path,
+            course::home_dir_path,
             course::course_sync,
             // Lab provision tracking
             course::lab_is_provisioned,

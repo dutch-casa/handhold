@@ -20,10 +20,12 @@ import {
   useSlideCompletions,
   useSaveSlideCompletion,
   useLabData,
+  useHomeDirPath,
 } from "@/browser/use-courses";
 import { parseLab } from "@/lab/parse-lab";
 import { Lab } from "@/lab/Lab";
 import { CourseNavBar } from "@/course/CourseNavBar";
+import { DependencyModal } from "@/course/DependencyModal";
 import { useGlobalTtsPrefetch } from "@/tts/use-prefetch-tts";
 import { UpdateBanner } from "@/updater/UpdateBanner";
 import type { CourseRecord, ManifestStep } from "@/types/browser";
@@ -162,6 +164,8 @@ function CourseShell({ courseId, onBack }: CourseShellProps) {
   const [rawStepIndex, setStepIndex] = useState(0);
   const completeStep = useCompleteStep();
   const stepIndexRef = useRef(rawStepIndex);
+  const { data: homeDir = "/" } = useHomeDirPath();
+  const [depsCleared, setDepsCleared] = useState(false);
 
   const completedSteps = useMemo(
     () => new Set(progressIndices ?? []),
@@ -178,6 +182,7 @@ function CourseShell({ courseId, onBack }: CourseShellProps) {
 
   const currentStep = manifest.steps[stepIndex]!;
   const canNext = stepIndex < total - 1;
+  const hasDeps = manifest.dependencies.length > 0;
 
   function handleNext() {
     setStepIndex((i) => (i + 1 < total ? i + 1 : i));
@@ -189,6 +194,14 @@ function CourseShell({ courseId, onBack }: CourseShellProps) {
 
   return (
     <div className="flex h-full flex-col">
+      {hasDeps && (
+        <DependencyModal
+          open={!depsCleared}
+          deps={manifest.dependencies}
+          homeDir={homeDir}
+          onContinue={() => setDepsCleared(true)}
+        />
+      )}
       <CourseNavBar
         nav={{
           progress: { current: stepIndex + 1, total },
