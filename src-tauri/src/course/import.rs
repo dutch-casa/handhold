@@ -7,7 +7,7 @@ use super::download::{download_github_course, download_http_course};
 use super::now_ms;
 use super::queries::read_course_row;
 use super::source::{
-    canonical_source_url, manifest_url, parse_source_url, source_id, CourseSource,
+    CourseSource, canonical_source_url, manifest_url, parse_source_url, source_id,
 };
 use super::types::{ImportResult, Manifest};
 
@@ -40,7 +40,7 @@ pub async fn course_import(db: State<'_, Db>, source_url: String) -> Result<Impo
             Err(e) => {
                 return Ok(ImportResult::BadManifest {
                     reason: e.to_string(),
-                })
+                });
             }
         },
         Ok(resp) if resp.status().as_u16() == 404 => return Ok(ImportResult::NoManifest),
@@ -53,7 +53,7 @@ pub async fn course_import(db: State<'_, Db>, source_url: String) -> Result<Impo
         Err(e) => {
             return Ok(ImportResult::BadManifest {
                 reason: e.to_string(),
-            })
+            });
         }
     };
 

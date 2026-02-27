@@ -3,13 +3,13 @@ use std::path::Path;
 use std::process::Command;
 use tauri::ipc::Channel;
 
+use super::TTSEvent;
 use super::bundle::{bundle_hit, bundle_write};
 use super::cache::hash_text;
-use super::paths::{resolve_espeak_data_dir, resolve_koko_binary, resolve_models_dir};
+use super::paths::{resolve_koko_binary, resolve_models_dir};
 use super::synth::synthesize_all_sentences;
 use super::timing::{stitch_sentences, text_word_at};
 use super::wav::wav_wrap;
-use super::TTSEvent;
 
 #[tauri::command]
 pub async fn synthesize(
@@ -101,7 +101,6 @@ pub async fn ensure_tts_ready() -> Result<String, String> {
     let models_dir = resolve_models_dir()?;
     let model_path = models_dir.join("kokoro-v1.0.onnx");
     let voices_path = models_dir.join("voices-v1.0.bin");
-    let espeak_data_dir = resolve_espeak_data_dir();
 
     if model_path.exists() && voices_path.exists() {
         return Ok("ready".to_string());
@@ -109,11 +108,7 @@ pub async fn ensure_tts_ready() -> Result<String, String> {
 
     let tmp_wav = std::env::temp_dir().join("handhold_tts_warmup.wav");
     let wav_str = tmp_wav.to_string_lossy().to_string();
-    let mut cmd = Command::new(&koko_bin);
-    if let Some(dir) = espeak_data_dir {
-        cmd.env("ESPEAK_DATA_PATH", dir);
-    }
-    let output = cmd
+    let output = Command::new(&koko_bin)
         .args([
             "-m",
             &model_path.to_string_lossy(),

@@ -1,5 +1,5 @@
 use parking_lot::Mutex;
-use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
+use portable_pty::{CommandBuilder, MasterPty, PtySize, native_pty_system};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::io::{Read, Write};
@@ -56,18 +56,42 @@ pub async fn pty_spawn(
         })
         .map_err(|e| format!("Failed to open PTY: {e}"))?;
 
-    // Determine shell binary
-    let shell_bin = if shell.is_empty() {
-        std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string())
-    } else {
+    // Determine shell binary — platform-aware default.
+    // On Windows, prefer Git Bash for a Unix-like experience, then PowerShell.
+    let shell_bin = if !shell.is_empty() {
         shell
+    } else if cfg!(windows) {
+        detect_windows_shell()
+    } else {
+        std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string())
     };
 
     let mut cmd = CommandBuilder::new(&shell_bin);
     cmd.cwd(&cwd);
 
+    // Spawn as login shell so rc files (PATH, aliases, plugins) are sourced.
+    // Without -l, macOS .app bundles get a bare environment missing Homebrew,
+    // nvm, pyenv, cargo, and anything else the user configured in .zprofile.
+    // Only on Unix — Windows shells (cmd.exe, powershell) don't support -l.
+    if args.is_empty() && !cfg!(windows) {
+        cmd.arg("-l");
+    }
     for arg in &args {
         cmd.arg(arg);
+    }
+
+    // Inject the user's real PATH resolved from their login shell.
+    // macOS .app bundles inherit PATH=/usr/bin:/bin:/usr/sbin:/sbin — tools
+    // like cmake, git, node, etc. installed via Homebrew are unreachable.
+    crate::shell_env::inject_pty(&mut cmd);
+
+    // xterm.js speaks xterm-256color. Without this on Unix, zsh's ZLE line
+    // editor cannot load terminfo, causing broken keybindings, autosuggestion
+    // misfires, and garbled input — the "autocompletes everything" bug.
+    // On Windows, TERM/COLORTERM are unused — ConPTY handles terminal caps.
+    if !cfg!(windows) {
+        cmd.env("TERM", "xterm-256color");
+        cmd.env("COLORTERM", "truecolor");
     }
 
     for (key, value) in &env {
@@ -191,4 +215,45 @@ pub async fn pty_kill(session_id: String) -> Result<(), String> {
     }
     // Dropping the entry closes the master PTY, which signals the child to exit
     Ok(())
+}
+
+/// On Windows, prefer Git Bash for a proper Unix-like terminal experience.
+/// Falls back to PowerShell, then cmd.exe.
+#[cfg(windows)]
+fn detect_windows_shell() -> String {
+    use std::path::Path;
+
+    // Git Bash — most common Unix shell on Windows
+    let git_bash_candidates = [
+        "C:\\Program Files\\Git\\bin\\bash.exe",
+        "C:\\Program Files (x86)\\Git\\bin\\bash.exe",
+    ];
+    for candidate in &git_bash_candidates {
+        if Path::new(candidate).exists() {
+            return candidate.to_string();
+        }
+    }
+
+    // PowerShell Core (pwsh) > Windows PowerShell > cmd
+    if which_exists("pwsh.exe") {
+        return "pwsh.exe".to_string();
+    }
+
+    std::env::var("COMSPEC").unwrap_or_else(|_| "powershell.exe".to_string())
+}
+
+#[cfg(windows)]
+fn which_exists(name: &str) -> bool {
+    std::process::Command::new("where")
+        .arg(name)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+#[cfg(not(windows))]
+fn detect_windows_shell() -> String {
+    unreachable!()
 }

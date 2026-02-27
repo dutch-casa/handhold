@@ -134,16 +134,14 @@ pub async fn course_sync(db: State<'_, Db>) -> Result<SyncResult, String> {
         let mut stmt = conn
             .prepare("SELECT id, local_path FROM course")
             .map_err(|e| e.to_string())?;
-        let rows = stmt
-            .query_map([], |row| {
-                let id: String = row.get(0)?;
-                let path: String = row.get(1)?;
-                Ok((id, path))
-            })
-            .map_err(|e| e.to_string())?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| e.to_string())?;
-        rows
+        stmt.query_map([], |row| {
+            let id: String = row.get(0)?;
+            let path: String = row.get(1)?;
+            Ok((id, path))
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?
     };
 
     let orphan_ids: Vec<&str> = all_courses

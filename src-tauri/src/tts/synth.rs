@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 use std::process::Command;
 
-use super::cache::{cache_hit, cache_write, hash_text, CachedSentence};
-use super::paths::{resolve_espeak_data_dir, resolve_koko_binary, resolve_models_dir};
+use super::cache::{CachedSentence, cache_hit, cache_write, hash_text};
+use super::paths::{resolve_koko_binary, resolve_models_dir};
 use super::split::split_sentences;
 use super::wav::wav_to_int16_pcm;
 
@@ -13,7 +13,6 @@ pub(super) struct KokoContext {
     pub koko_bin: PathBuf,
     pub model_path: PathBuf,
     pub voices_path: PathBuf,
-    pub espeak_data_dir: Option<PathBuf>,
     pub tmp_id: u128,
 }
 
@@ -22,7 +21,6 @@ pub(super) fn resolve_koko_context() -> Result<KokoContext, String> {
     let models_dir = resolve_models_dir()?;
     let model_path = models_dir.join("kokoro-v1.0.onnx");
     let voices_path = models_dir.join("voices-v1.0.bin");
-    let espeak_data_dir = resolve_espeak_data_dir();
     let tmp_id = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
@@ -31,7 +29,6 @@ pub(super) fn resolve_koko_context() -> Result<KokoContext, String> {
         koko_bin,
         model_path,
         voices_path,
-        espeak_data_dir,
         tmp_id,
     })
 }
@@ -79,11 +76,7 @@ fn synthesize_sentence_with_voice(
         std::env::temp_dir().join(format!("handhold_tts_{}_{}.tsv", ctx.tmp_id, sentence_idx));
     let wav_str = tmp_wav.to_string_lossy().to_string();
 
-    let mut cmd = Command::new(&ctx.koko_bin);
-    if let Some(dir) = ctx.espeak_data_dir.as_deref() {
-        cmd.env("ESPEAK_DATA_PATH", dir);
-    }
-    let output = cmd
+    let output = Command::new(&ctx.koko_bin)
         .args([
             "-m",
             &ctx.model_path.to_string_lossy(),

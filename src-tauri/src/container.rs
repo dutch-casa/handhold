@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::io::{BufRead, BufReader};
 use std::process::{Command, Stdio};
-use tauri::ipc::Channel;
 use tauri::State;
+use tauri::ipc::Channel;
 
 pub struct ActiveComposes(Mutex<HashSet<String>>);
 
@@ -17,9 +17,10 @@ impl ActiveComposes {
         let paths: Vec<String> = self.0.lock().drain().collect();
         let Ok(binary) = resolve_binary() else { return };
         for path in &paths {
-            let _ = Command::new(&binary)
-                .args(["compose", "-f", path, "down"])
-                .output();
+            let mut cmd = Command::new(&binary);
+            cmd.args(["compose", "-f", path, "down"]);
+            crate::shell_env::inject(&mut cmd);
+            let _ = cmd.output();
         }
     }
 }
@@ -105,9 +106,10 @@ pub enum RuntimeCheck {
 
 /// Run a binary with --version, return the output if it succeeds.
 fn probe_version(binary: &str) -> Option<String> {
-    Command::new(binary)
-        .arg("--version")
-        .output()
+    let mut cmd = Command::new(binary);
+    cmd.arg("--version");
+    crate::shell_env::inject(&mut cmd);
+    cmd.output()
         .ok()
         .filter(|o| o.status.success())
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
@@ -204,15 +206,17 @@ pub async fn compose_up(
 ) -> Result<(), String> {
     let binary = resolve_binary()?;
 
-    let up = Command::new(&binary)
-        .args([
-            "compose",
-            "-f",
-            &compose_path,
-            "up",
-            "-d",
-            "--force-recreate",
-        ])
+    let mut up_cmd = Command::new(&binary);
+    up_cmd.args([
+        "compose",
+        "-f",
+        &compose_path,
+        "up",
+        "-d",
+        "--force-recreate",
+    ]);
+    crate::shell_env::inject(&mut up_cmd);
+    let up = up_cmd
         .output()
         .map_err(|e| format!("compose up failed: {e}"))?;
 
@@ -232,8 +236,10 @@ pub async fn compose_up(
     for _ in 0..HEALTH_POLL_ATTEMPTS {
         tokio::time::sleep(std::time::Duration::from_secs(HEALTH_POLL_INTERVAL_SECS)).await;
 
-        let ps = Command::new(&binary)
-            .args(["compose", "-f", &compose_path, "ps", "--format", "json"])
+        let mut ps_cmd = Command::new(&binary);
+        ps_cmd.args(["compose", "-f", &compose_path, "ps", "--format", "json"]);
+        crate::shell_env::inject(&mut ps_cmd);
+        let ps = ps_cmd
             .output()
             .map_err(|e| format!("compose ps failed: {e}"))?;
 
@@ -284,13 +290,15 @@ pub async fn compose_down(
 ) -> Result<(), String> {
     let binary = resolve_binary()?;
 
-    let mut args = vec!["compose", "-f", &compose_path, "down"];
+    let mut down_args = vec!["compose", "-f", &compose_path, "down"];
     if remove_volumes {
-        args.push("-v");
+        down_args.push("-v");
     }
 
-    let output = Command::new(&binary)
-        .args(&args)
+    let mut cmd = Command::new(&binary);
+    cmd.args(&down_args);
+    crate::shell_env::inject(&mut cmd);
+    let output = cmd
         .output()
         .map_err(|e| format!("compose down failed: {e}"))?;
 
@@ -308,8 +316,10 @@ pub async fn compose_down(
 pub async fn container_list(compose_path: String) -> Result<Vec<ContainerInfo>, String> {
     let binary = resolve_binary()?;
 
-    let output = Command::new(&binary)
-        .args(["compose", "-f", &compose_path, "ps", "--format", "json"])
+    let mut cmd = Command::new(&binary);
+    cmd.args(["compose", "-f", &compose_path, "ps", "--format", "json"]);
+    crate::shell_env::inject(&mut cmd);
+    let output = cmd
         .output()
         .map_err(|e| format!("container list failed: {e}"))?;
 
@@ -325,10 +335,12 @@ pub async fn container_logs(
 ) -> Result<(), String> {
     let binary = resolve_binary()?;
 
-    let mut child = Command::new(&binary)
-        .args(["logs", "-f", "--tail", "500", &container_name])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+    let mut cmd = Command::new(&binary);
+    cmd.args(["logs", "-f", "--tail", "500", &container_name]);
+    crate::shell_env::inject(&mut cmd);
+    cmd.stdout(Stdio::piped());
+    cmd.stderr(Stdio::piped());
+    let mut child = cmd
         .spawn()
         .map_err(|e| format!("container logs failed: {e}"))?;
 
@@ -402,10 +414,10 @@ pub async fn container_action(
     let binary = resolve_binary()?;
     let verb = action.as_str();
 
-    let output = Command::new(&binary)
-        .args([verb, &container_name])
-        .output()
-        .map_err(|e| format!("{verb} failed: {e}"))?;
+    let mut cmd = Command::new(&binary);
+    cmd.args([verb, &container_name]);
+    crate::shell_env::inject(&mut cmd);
+    let output = cmd.output().map_err(|e| format!("{verb} failed: {e}"))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);

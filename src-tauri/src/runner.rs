@@ -37,12 +37,14 @@ pub async fn run_command(
     on_output: Channel<RunnerEvent>,
 ) -> Result<RunResult, String> {
     let (prog, flag) = shell();
-    let mut child = Command::new(prog)
-        .args([flag, &command])
-        .current_dir(&cwd)
-        .envs(env)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+    let mut cmd = Command::new(prog);
+    cmd.args([flag, &command]);
+    cmd.current_dir(&cwd);
+    crate::shell_env::inject(&mut cmd);
+    cmd.envs(env);
+    cmd.stdout(Stdio::piped());
+    cmd.stderr(Stdio::piped());
+    let mut child = cmd
         .spawn()
         .map_err(|e| format!("Failed to spawn command: {e}"))?;
 
@@ -88,14 +90,13 @@ pub async fn check_dependency(cmd: String) -> bool {
     let (prog, flag) = shell();
     dirs::home_dir()
         .map(|home| {
-            Command::new(prog)
-                .args([flag, &cmd])
-                .current_dir(&home)
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status()
-                .map(|s| s.success())
-                .unwrap_or(false)
+            let mut command = Command::new(prog);
+            command.args([flag, &cmd]);
+            command.current_dir(&home);
+            crate::shell_env::inject(&mut command);
+            command.stdout(Stdio::null());
+            command.stderr(Stdio::null());
+            command.status().map(|s| s.success()).unwrap_or(false)
         })
         .unwrap_or(false)
 }

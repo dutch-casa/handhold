@@ -10,11 +10,12 @@ mod pty;
 mod runner;
 mod search;
 mod settings;
+mod shell_env;
 mod tts;
 mod watcher;
 
-use tauri::menu::{AboutMetadata, Menu, PredefinedMenuItem, Submenu};
 use tauri::Manager;
+use tauri::menu::{AboutMetadata, Menu, PredefinedMenuItem, Submenu};
 
 fn build_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     let about_meta = AboutMetadata {

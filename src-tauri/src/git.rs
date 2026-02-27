@@ -18,9 +18,11 @@ pub struct LineChange {
 
 #[tauri::command]
 pub async fn git_line_diff(path: String, workspace: String) -> Result<Vec<LineChange>, String> {
-    let output = Command::new("git")
-        .current_dir(&workspace)
-        .args(["diff", "--unified=0", "--no-color", "--", &path])
+    let mut cmd = Command::new("git");
+    cmd.current_dir(&workspace);
+    cmd.args(["diff", "--unified=0", "--no-color", "--", &path]);
+    crate::shell_env::inject(&mut cmd);
+    let output = cmd
         .output()
         .map_err(|e| format!("git not available: {e}"))?;
 
@@ -37,9 +39,11 @@ pub async fn git_line_diff_head(
     path: String,
     workspace: String,
 ) -> Result<Vec<LineChange>, String> {
-    let output = Command::new("git")
-        .current_dir(&workspace)
-        .args(["diff", "HEAD", "--unified=0", "--no-color", "--", &path])
+    let mut cmd = Command::new("git");
+    cmd.current_dir(&workspace);
+    cmd.args(["diff", "HEAD", "--unified=0", "--no-color", "--", &path]);
+    crate::shell_env::inject(&mut cmd);
+    let output = cmd
         .output()
         .map_err(|e| format!("git not available: {e}"))?;
 
@@ -70,9 +74,11 @@ pub struct GitStatusEntry {
 
 #[tauri::command]
 pub async fn git_status_files(workspace: String) -> Result<Vec<GitStatusEntry>, String> {
-    let output = Command::new("git")
-        .current_dir(&workspace)
-        .args(["status", "--porcelain", "-uall"])
+    let mut cmd = Command::new("git");
+    cmd.current_dir(&workspace);
+    cmd.args(["status", "--porcelain", "-uall"]);
+    crate::shell_env::inject(&mut cmd);
+    let output = cmd
         .output()
         .map_err(|e| format!("git not available: {e}"))?;
 

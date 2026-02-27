@@ -28,6 +28,13 @@ jobs:
             target: x86_64-pc-windows-msvc
             args: ""
     runs-on: ${{ matrix.os }}
+
+    # Set sccache env at the job level so every step — including
+    # tauri-action's internal cargo invocation — inherits it.
+    env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+
     steps:
       - uses: actions/checkout@v4
 
@@ -58,15 +65,19 @@ jobs:
           targets: ${{ matrix.target }}
 
       - uses: mozilla-actions/sccache-action@v0.0.9
-      - run: |
-          echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
-          echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
-        shell: bash
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
           cache-on-failure: true
+
+      # Verify sccache is reachable before spending time building
+      - name: Verify sccache
+        shell: bash
+        run: |
+          echo "RUSTC_WRAPPER=$RUSTC_WRAPPER"
+          which sccache
+          sccache --version
 
       # --- Cached koko sidecar binary ---
       # Bump the trailing version (koko-v1 → koko-v2) to force a rebuild
@@ -77,8 +88,12 @@ jobs:
           path: src-tauri/binaries
           key: koko-${{ matrix.target }}-v1
 
+      # Build koko WITHOUT sccache — it's a separate repo and its own
+      # compilation cache would thrash handhold's sccache entries.
       - name: Build koko (Unix)
         if: runner.os != 'Windows' && steps.koko-cache.outputs.cache-hit != 'true'
+        env:
+          RUSTC_WRAPPER: ""
         run: |
           git clone --depth 1 https://github.com/lucasjinreal/Kokoros.git /tmp/kokoros
           cd /tmp/kokoros
@@ -89,6 +104,8 @@ jobs:
       - name: Build koko (Windows)
         if: runner.os == 'Windows' && steps.koko-cache.outputs.cache-hit != 'true'
         shell: pwsh
+        env:
+          RUSTC_WRAPPER: ""
         run: |
           git clone --depth 1 https://github.com/lucasjinreal/Kokoros.git C:\kokoros
           cd C:\kokoros
@@ -125,6 +142,11 @@ jobs:
             -OutFile "src-tauri\resources\models\voices-v1.0.bin"
           Get-ChildItem "src-tauri\resources\models"
 
+      # Ensure resource dir exists — Tauri fails if a bundled resource path is missing
+      - name: Create resource dirs
+        shell: bash
+        run: mkdir -p src-tauri/resources/models
+
       # --- Frontend ---
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
@@ -144,3 +166,9 @@ jobs:
           prerelease: false
           includeUpdaterJson: true
           args: ${{ matrix.args }}
+
+      # Print sccache stats so we can verify it worked
+      - name: sccache stats
+        if: always()
+        shell: bash
+        run: sccache --show-stats

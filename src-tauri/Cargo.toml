@@ -1,9 +1,9 @@
 [package]
 name = "handhold"
-version = "0.2.6"
+version = "0.2.7"
 description = "Interactive course platform"
 authors = ["dutchcaz"]
-edition = "2021"
+edition = "2024"
 default-run = "handhold"
 
 [build-dependencies]
@@ -39,4 +39,6 @@ tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 
 [profile.release]
+lto = "thin"
+strip = "symbols"
 codegen-units = 16

@@ -50,11 +50,6 @@ pub(super) fn resolve_models_dir() -> Result<PathBuf, String> {
         return Ok(dev_models);
     }
 
-    let dev_legacy = Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/piper");
-    if models_dir_has_required_files(&dev_legacy) {
-        return Ok(dev_legacy);
-    }
-
     if let Ok(exe) = std::env::current_exe() {
         let exe_dir = exe.parent().unwrap_or(Path::new("."));
 
@@ -83,31 +78,4 @@ pub(super) fn cache_dir() -> PathBuf {
     dirs::cache_dir()
         .unwrap_or_else(|| PathBuf::from("/tmp"))
         .join("handhold/tts")
-}
-
-pub(super) fn resolve_espeak_data_dir() -> Option<PathBuf> {
-    let dev_candidate =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/piper/espeak-ng-data");
-    if dev_candidate.is_dir() {
-        return Some(dev_candidate);
-    }
-
-    if let Ok(exe) = std::env::current_exe() {
-        let exe_dir = exe.parent().unwrap_or(Path::new("."));
-
-        let macos_candidate = exe_dir
-            .parent()
-            .unwrap_or(exe_dir)
-            .join("Resources/resources/piper/espeak-ng-data");
-        if macos_candidate.is_dir() {
-            return Some(macos_candidate);
-        }
-
-        let flat_candidate = exe_dir.join("resources/piper/espeak-ng-data");
-        if flat_candidate.is_dir() {
-            return Some(flat_candidate);
-        }
-    }
-
-    None
 }

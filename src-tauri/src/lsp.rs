@@ -72,6 +72,7 @@ pub async fn lsp_spawn(
     let mut cmd = Command::new(&server_binary);
     cmd.args(&server_args);
     cmd.current_dir(&root_path);
+    crate::shell_env::inject(&mut cmd);
     cmd.stdin(Stdio::piped());
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());

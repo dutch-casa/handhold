@@ -7,7 +7,6 @@ src-tauri/gen/
 
 # Sidecar binaries
 src-tauri/binaries/koko-*
-src-tauri/binaries/piper-*
 
 # Large model files (downloaded by scripts/download-sidecars.sh)
 src-tauri/resources/models/

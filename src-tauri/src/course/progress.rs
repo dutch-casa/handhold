@@ -1,5 +1,5 @@
 use crate::db::Db;
-use rusqlite::{params, OptionalExtension};
+use rusqlite::{OptionalExtension, params};
 use tauri::State;
 
 use super::now_ms;
