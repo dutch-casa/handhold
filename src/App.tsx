@@ -199,6 +199,7 @@ function CourseShell({ courseId, onBack }: CourseShellProps) {
           open={!depsCleared}
           deps={manifest.dependencies}
           homeDir={homeDir}
+          onBack={onBack}
           onContinue={() => setDepsCleared(true)}
         />
       )}

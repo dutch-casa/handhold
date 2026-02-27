@@ -24,10 +24,11 @@ type Props = {
   readonly deps: readonly CourseDependency[];
   /** Absolute path used as cwd for install commands. */
   readonly homeDir: string;
+  readonly onBack: () => void;
   readonly onContinue: () => void;
 };
 
-export function DependencyModal({ open, deps, homeDir, onContinue }: Props) {
+export function DependencyModal({ open, deps, homeDir, onBack, onContinue }: Props) {
   const checkResults = useDepChecks(deps);
   const [installStates, setInstallStates] = useState<Record<string, InstallState>>({});
 
@@ -120,6 +121,7 @@ export function DependencyModal({ open, deps, homeDir, onContinue }: Props) {
         </ul>
 
         <DialogFooter>
+          <Button variant="ghost" onClick={onBack}>Go Back</Button>
           <Button onClick={onContinue}>Continue</Button>
         </DialogFooter>
       </DialogContent>
