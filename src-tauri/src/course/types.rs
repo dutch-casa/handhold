@@ -56,7 +56,11 @@ impl ManifestDependency {
     /// Returns None when no key matches — Install button is hidden on the frontend.
     fn into_public(self) -> CourseDependency {
         let install = self.install.get(std::env::consts::OS).cloned();
-        CourseDependency { name: self.name, check: self.check, install }
+        CourseDependency {
+            name: self.name,
+            check: self.check,
+            install,
+        }
     }
 }
 
@@ -88,7 +92,11 @@ impl Manifest {
             description: self.description,
             tags: self.tags,
             steps: self.steps,
-            dependencies: self.dependencies.into_iter().map(|d| d.into_public()).collect(),
+            dependencies: self
+                .dependencies
+                .into_iter()
+                .map(|d| d.into_public())
+                .collect(),
         }
     }
 }

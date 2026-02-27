@@ -5,9 +5,13 @@ use tauri::ipc::Channel;
 
 // Returns (program, flag) for the platform's non-interactive shell.
 #[cfg(target_os = "windows")]
-fn shell() -> (&'static str, &'static str) { ("cmd", "/C") }
+fn shell() -> (&'static str, &'static str) {
+    ("cmd", "/C")
+}
 #[cfg(not(target_os = "windows"))]
-fn shell() -> (&'static str, &'static str) { ("sh", "-c") }
+fn shell() -> (&'static str, &'static str) {
+    ("sh", "-c")
+}
 
 /// Events streamed during command execution
 #[derive(Clone, Serialize)]
