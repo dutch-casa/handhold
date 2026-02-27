@@ -45,16 +45,11 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install pkg-config opus cmake
 
-      # Windows: MSYS2 autotools on PATH so mp3lame-sys can ./configure && make
-      # No vcpkg needed — mp3lame-sys and audiopus_sys build from source.
-      # reqwest uses SChannel on Windows (not OpenSSL).
       - name: Setup MSYS2 tools (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          # Install autotools suite in MSYS2 (already present on runner)
           C:\msys64\usr\bin\pacman.exe -S --noconfirm autoconf automake libtool make pkg-config
-          # Add to PATH so Rust build scripts can find sh, make, etc.
           echo "C:\msys64\usr\bin" >> $env:GITHUB_PATH
 
       # --- Rust toolchain + caching ---
@@ -73,9 +68,17 @@ jobs:
           workspaces: src-tauri
           cache-on-failure: true
 
-      # --- Build koko sidecar ---
+      # --- Cached koko sidecar binary ---
+      # Bump the trailing version (koko-v1 → koko-v2) to force a rebuild
+      - name: Cache koko binary
+        id: koko-cache
+        uses: actions/cache@v4
+        with:
+          path: src-tauri/binaries
+          key: koko-${{ matrix.target }}-v1
+
       - name: Build koko (Unix)
-        if: runner.os != 'Windows'
+        if: runner.os != 'Windows' && steps.koko-cache.outputs.cache-hit != 'true'
         run: |
           git clone --depth 1 https://github.com/lucasjinreal/Kokoros.git /tmp/kokoros
           cd /tmp/kokoros
@@ -84,7 +87,7 @@ jobs:
           cp target/release/koko "${{ github.workspace }}/src-tauri/binaries/koko-${{ matrix.target }}"
 
       - name: Build koko (Windows)
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && steps.koko-cache.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           git clone --depth 1 https://github.com/lucasjinreal/Kokoros.git C:\kokoros
@@ -93,9 +96,16 @@ jobs:
           New-Item -ItemType Directory -Force -Path "${{ github.workspace }}\src-tauri\binaries"
           Copy-Item "target\release\koko.exe" "${{ github.workspace }}\src-tauri\binaries\koko-x86_64-pc-windows-msvc.exe"
 
-      # --- TTS models (platform-independent, bundled in the installer) ---
+      # --- Cached TTS models (static v1.0, never change) ---
+      - name: Cache TTS models
+        id: tts-cache
+        uses: actions/cache@v4
+        with:
+          path: src-tauri/resources/models
+          key: tts-models-v1.0
+
       - name: Download TTS models (Unix)
-        if: runner.os != 'Windows'
+        if: runner.os != 'Windows' && steps.tts-cache.outputs.cache-hit != 'true'
         run: |
           mkdir -p src-tauri/resources/models
           curl -fSL "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx" \
@@ -105,7 +115,7 @@ jobs:
           ls -lh src-tauri/resources/models/
 
       - name: Download TTS models (Windows)
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && steps.tts-cache.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path "src-tauri\resources\models"
