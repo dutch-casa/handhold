@@ -1,5 +1,4 @@
 use serde::Serialize;
-use std::process::Command;
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -18,7 +17,7 @@ pub struct LineChange {
 
 #[tauri::command]
 pub async fn git_line_diff(path: String, workspace: String) -> Result<Vec<LineChange>, String> {
-    let mut cmd = Command::new("git");
+    let mut cmd = crate::cmd("git");
     cmd.current_dir(&workspace);
     cmd.args(["diff", "--unified=0", "--no-color", "--", &path]);
     crate::shell_env::inject(&mut cmd);
@@ -39,7 +38,7 @@ pub async fn git_line_diff_head(
     path: String,
     workspace: String,
 ) -> Result<Vec<LineChange>, String> {
-    let mut cmd = Command::new("git");
+    let mut cmd = crate::cmd("git");
     cmd.current_dir(&workspace);
     cmd.args(["diff", "HEAD", "--unified=0", "--no-color", "--", &path]);
     crate::shell_env::inject(&mut cmd);
@@ -74,7 +73,7 @@ pub struct GitStatusEntry {
 
 #[tauri::command]
 pub async fn git_status_files(workspace: String) -> Result<Vec<GitStatusEntry>, String> {
-    let mut cmd = Command::new("git");
+    let mut cmd = crate::cmd("git");
     cmd.current_dir(&workspace);
     cmd.args(["status", "--porcelain", "-uall"]);
     crate::shell_env::inject(&mut cmd);

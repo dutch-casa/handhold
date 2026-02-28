@@ -1,16 +1,22 @@
 use serde::Serialize;
 use std::io::{BufRead, BufReader};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use tauri::ipc::Channel;
 
 // Returns (program, flag) for the platform's non-interactive shell.
-#[cfg(target_os = "windows")]
-fn shell() -> (&'static str, &'static str) {
-    ("cmd", "/C")
-}
+// On Windows, prefers Git Bash so lab scripts can use Unix commands (ls, grep,
+// chmod, etc.). Falls back to cmd.exe when Git Bash is not installed.
 #[cfg(not(target_os = "windows"))]
-fn shell() -> (&'static str, &'static str) {
-    ("sh", "-c")
+fn shell() -> (String, &'static str) {
+    ("sh".to_string(), "-c")
+}
+
+#[cfg(target_os = "windows")]
+fn shell() -> (String, &'static str) {
+    if let Some(bash) = crate::pty::find_git_bash() {
+        return (bash, "-c");
+    }
+    ("cmd".to_string(), "/C")
 }
 
 /// Events streamed during command execution
@@ -37,7 +43,7 @@ pub async fn run_command(
     on_output: Channel<RunnerEvent>,
 ) -> Result<RunResult, String> {
     let (prog, flag) = shell();
-    let mut cmd = Command::new(prog);
+    let mut cmd = crate::cmd(&prog);
     cmd.args([flag, &command]);
     cmd.current_dir(&cwd);
     crate::shell_env::inject(&mut cmd);
@@ -90,7 +96,7 @@ pub async fn check_dependency(cmd: String) -> bool {
     let (prog, flag) = shell();
     dirs::home_dir()
         .map(|home| {
-            let mut command = Command::new(prog);
+            let mut command = crate::cmd(&prog);
             command.args([flag, &cmd]);
             command.current_dir(&home);
             crate::shell_env::inject(&mut command);

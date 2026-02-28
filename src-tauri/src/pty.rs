@@ -72,9 +72,14 @@ pub async fn pty_spawn(
     // Spawn as login shell so rc files (PATH, aliases, plugins) are sourced.
     // Without -l, macOS .app bundles get a bare environment missing Homebrew,
     // nvm, pyenv, cargo, and anything else the user configured in .zprofile.
-    // Only on Unix — Windows shells (cmd.exe, powershell) don't support -l.
-    if args.is_empty() && !cfg!(windows) {
-        cmd.arg("-l");
+    // Git Bash on Windows also supports --login to source .bash_profile.
+    // Native Windows shells (cmd.exe, powershell) do not support this flag.
+    if args.is_empty() {
+        let is_unix_shell = !cfg!(windows)
+            || shell_bin.to_ascii_lowercase().ends_with("bash.exe");
+        if is_unix_shell {
+            cmd.arg("--login");
+        }
     }
     for arg in &args {
         cmd.arg(arg);
@@ -217,34 +222,54 @@ pub async fn pty_kill(session_id: String) -> Result<(), String> {
     Ok(())
 }
 
-/// On Windows, prefer Git Bash for a proper Unix-like terminal experience.
-/// Falls back to PowerShell, then cmd.exe.
+/// Returns the path to Git Bash if installed, or None.
+///
+/// Checks the locations used by the official Git for Windows installer
+/// (system-wide and per-user), then falls back to PATH lookup for
+/// winget/scoop/choco installs that put bash.exe on PATH.
 #[cfg(windows)]
-fn detect_windows_shell() -> String {
+pub(crate) fn find_git_bash() -> Option<String> {
     use std::path::Path;
 
-    // Git Bash — most common Unix shell on Windows
-    let git_bash_candidates = [
-        "C:\\Program Files\\Git\\bin\\bash.exe",
-        "C:\\Program Files (x86)\\Git\\bin\\bash.exe",
+    let candidates = [
+        // System-wide Git installer (default)
+        "C:\\Program Files\\Git\\bin\\bash.exe".to_string(),
+        // 32-bit Git on 64-bit Windows
+        "C:\\Program Files (x86)\\Git\\bin\\bash.exe".to_string(),
+        // Per-user Git installer (current user, no admin rights needed)
+        std::env::var("LOCALAPPDATA")
+            .map(|p| format!("{p}\\Programs\\Git\\bin\\bash.exe"))
+            .unwrap_or_default(),
     ];
-    for candidate in &git_bash_candidates {
-        if Path::new(candidate).exists() {
-            return candidate.to_string();
+    for path in &candidates {
+        if !path.is_empty() && Path::new(path).exists() {
+            return Some(path.clone());
         }
     }
+    // winget / scoop / choco installs add bash.exe to PATH
+    if which_on_path("bash.exe") {
+        return Some("bash.exe".to_string());
+    }
+    None
+}
 
+/// On Windows, prefer Git Bash for a proper Unix-like terminal experience.
+/// Falls back to PowerShell Core, then cmd.exe.
+#[cfg(windows)]
+fn detect_windows_shell() -> String {
+    if let Some(bash) = find_git_bash() {
+        return bash;
+    }
     // PowerShell Core (pwsh) > Windows PowerShell > cmd
-    if which_exists("pwsh.exe") {
+    if which_on_path("pwsh.exe") {
         return "pwsh.exe".to_string();
     }
-
     std::env::var("COMSPEC").unwrap_or_else(|_| "powershell.exe".to_string())
 }
 
 #[cfg(windows)]
-fn which_exists(name: &str) -> bool {
-    std::process::Command::new("where")
+fn which_on_path(name: &str) -> bool {
+    crate::cmd("where")
         .arg(name)
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
@@ -256,4 +281,21 @@ fn which_exists(name: &str) -> bool {
 #[cfg(not(windows))]
 fn detect_windows_shell() -> String {
     unreachable!()
+}
+
+/// Returns true if Git Bash is available on this machine.
+///
+/// Always true on non-Windows — the check only matters where Git Bash is the
+/// required Unix-like shell. Frontend callers gate the "install Git" warning
+/// on this value.
+#[tauri::command]
+pub fn check_git_bash() -> bool {
+    #[cfg(windows)]
+    {
+        find_git_bash().is_some()
+    }
+    #[cfg(not(windows))]
+    {
+        true
+    }
 }

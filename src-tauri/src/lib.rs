@@ -124,6 +124,7 @@ pub fn run() {
             pty::pty_write,
             pty::pty_resize,
             pty::pty_kill,
+            pty::check_git_bash,
             // Command execution
             runner::run_command,
             runner::check_dependency,
@@ -184,4 +185,20 @@ pub fn run() {
             handle.state::<container::ActiveComposes>().teardown_all();
         }
     });
+}
+
+/// Creates a `Command` with `CREATE_NO_WINDOW` pre-set on Windows.
+///
+/// On Windows, GUI-subsystem processes spawn child processes that each open
+/// a new console window by default. This constructor bakes in 0x08000000
+/// (CREATE_NO_WINDOW) so no call site needs to remember the flag.
+pub(crate) fn cmd(program: impl AsRef<std::ffi::OsStr>) -> std::process::Command {
+    #[allow(unused_mut)]
+    let mut c = std::process::Command::new(program);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        c.creation_flags(0x08000000);
+    }
+    c
 }

@@ -1,6 +1,5 @@
 use base64::Engine;
 use std::path::Path;
-use std::process::Command;
 use tauri::ipc::Channel;
 
 use super::TTSEvent;
@@ -108,7 +107,7 @@ pub async fn ensure_tts_ready() -> Result<String, String> {
 
     let tmp_wav = std::env::temp_dir().join("handhold_tts_warmup.wav");
     let wav_str = tmp_wav.to_string_lossy().to_string();
-    let output = Command::new(&koko_bin)
+    let output = crate::cmd(&koko_bin)
         .args([
             "-m",
             &model_path.to_string_lossy(),

@@ -1,5 +1,4 @@
 use std::path::PathBuf;
-use std::process::Command;
 
 use super::cache::{CachedSentence, cache_hit, cache_write, hash_text};
 use super::paths::{resolve_koko_binary, resolve_models_dir};
@@ -76,7 +75,7 @@ fn synthesize_sentence_with_voice(
         std::env::temp_dir().join(format!("handhold_tts_{}_{}.tsv", ctx.tmp_id, sentence_idx));
     let wav_str = tmp_wav.to_string_lossy().to_string();
 
-    let output = Command::new(&ctx.koko_bin)
+    let output = crate::cmd(&ctx.koko_bin)
         .args([
             "-m",
             &ctx.model_path.to_string_lossy(),

@@ -106,6 +106,8 @@ jobs:
         shell: pwsh
         env:
           RUSTC_WRAPPER: ""
+          # Static CRT: koko.exe must not depend on vcruntime140.dll at runtime.
+          RUSTFLAGS: "-C target-feature=+crt-static"
         run: |
           git clone --depth 1 https://github.com/lucasjinreal/Kokoros.git C:\kokoros
           cd C:\kokoros

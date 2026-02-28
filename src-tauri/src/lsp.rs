@@ -2,7 +2,7 @@ use parking_lot::Mutex;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Stdio};
 use std::sync::Arc;
 use tauri::ipc::Channel;
 
@@ -69,7 +69,7 @@ pub async fn lsp_spawn(
     root_path: String,
     on_event: Channel<LspEvent>,
 ) -> Result<LspSession, String> {
-    let mut cmd = Command::new(&server_binary);
+    let mut cmd = crate::cmd(&server_binary);
     cmd.args(&server_args);
     cmd.current_dir(&root_path);
     crate::shell_env::inject(&mut cmd);

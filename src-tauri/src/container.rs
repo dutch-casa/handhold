@@ -2,7 +2,7 @@ use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::io::{BufRead, BufReader};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use tauri::State;
 use tauri::ipc::Channel;
 
@@ -17,7 +17,7 @@ impl ActiveComposes {
         let paths: Vec<String> = self.0.lock().drain().collect();
         let Ok(binary) = resolve_binary() else { return };
         for path in &paths {
-            let mut cmd = Command::new(&binary);
+            let mut cmd = crate::cmd(&binary);
             cmd.args(["compose", "-f", path, "down"]);
             crate::shell_env::inject(&mut cmd);
             let _ = cmd.output();
@@ -43,9 +43,13 @@ fn search_dirs() -> Vec<String> {
     } else if cfg!(target_os = "linux") {
         dirs.extend(["/usr/bin".to_string(), "/usr/local/bin".to_string()]);
     } else if cfg!(target_os = "windows") {
-        // Docker Desktop
+        // Docker Desktop system install
         if let Ok(pf) = std::env::var("ProgramFiles") {
             dirs.push(format!("{pf}\\Docker\\Docker\\resources\\bin"));
+        }
+        // Docker Desktop newer per-user install (Docker 4.x+)
+        if let Ok(profile) = std::env::var("USERPROFILE") {
+            dirs.push(format!("{profile}\\.docker\\bin"));
         }
         // Podman Desktop
         if let Ok(pf) = std::env::var("ProgramFiles") {
@@ -106,7 +110,7 @@ pub enum RuntimeCheck {
 
 /// Run a binary with --version, return the output if it succeeds.
 fn probe_version(binary: &str) -> Option<String> {
-    let mut cmd = Command::new(binary);
+    let mut cmd = crate::cmd(binary);
     cmd.arg("--version");
     crate::shell_env::inject(&mut cmd);
     cmd.output()
@@ -206,7 +210,7 @@ pub async fn compose_up(
 ) -> Result<(), String> {
     let binary = resolve_binary()?;
 
-    let mut up_cmd = Command::new(&binary);
+    let mut up_cmd = crate::cmd(&binary);
     up_cmd.args([
         "compose",
         "-f",
@@ -236,7 +240,7 @@ pub async fn compose_up(
     for _ in 0..HEALTH_POLL_ATTEMPTS {
         tokio::time::sleep(std::time::Duration::from_secs(HEALTH_POLL_INTERVAL_SECS)).await;
 
-        let mut ps_cmd = Command::new(&binary);
+        let mut ps_cmd = crate::cmd(&binary);
         ps_cmd.args(["compose", "-f", &compose_path, "ps", "--format", "json"]);
         crate::shell_env::inject(&mut ps_cmd);
         let ps = ps_cmd
@@ -295,7 +299,7 @@ pub async fn compose_down(
         down_args.push("-v");
     }
 
-    let mut cmd = Command::new(&binary);
+    let mut cmd = crate::cmd(&binary);
     cmd.args(&down_args);
     crate::shell_env::inject(&mut cmd);
     let output = cmd
@@ -316,7 +320,7 @@ pub async fn compose_down(
 pub async fn container_list(compose_path: String) -> Result<Vec<ContainerInfo>, String> {
     let binary = resolve_binary()?;
 
-    let mut cmd = Command::new(&binary);
+    let mut cmd = crate::cmd(&binary);
     cmd.args(["compose", "-f", &compose_path, "ps", "--format", "json"]);
     crate::shell_env::inject(&mut cmd);
     let output = cmd
@@ -335,7 +339,7 @@ pub async fn container_logs(
 ) -> Result<(), String> {
     let binary = resolve_binary()?;
 
-    let mut cmd = Command::new(&binary);
+    let mut cmd = crate::cmd(&binary);
     cmd.args(["logs", "-f", "--tail", "500", &container_name]);
     crate::shell_env::inject(&mut cmd);
     cmd.stdout(Stdio::piped());
@@ -414,7 +418,7 @@ pub async fn container_action(
     let binary = resolve_binary()?;
     let verb = action.as_str();
 
-    let mut cmd = Command::new(&binary);
+    let mut cmd = crate::cmd(&binary);
     cmd.args([verb, &container_name]);
     crate::shell_env::inject(&mut cmd);
     let output = cmd.output().map_err(|e| format!("{verb} failed: {e}"))?;
