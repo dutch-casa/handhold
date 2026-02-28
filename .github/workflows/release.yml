@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - "v*"
+  # Allow manual re-runs from the Actions tab (e.g. after a transient failure).
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -52,19 +54,24 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install pkg-config opus cmake
 
-      - name: Setup MSYS2 tools (Windows)
+      # msys2/setup-msys2 is the canonical action for MSYS2 on Windows runners.
+      # It ensures a consistent, reproducible environment vs. invoking pacman directly
+      # against the runner's pre-installed MSYS2 (which can drift between runner images).
+      # path-type: inherit preserves the existing Windows PATH so cargo, node, etc. still work.
+      - uses: msys2/setup-msys2@v2
         if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          C:\msys64\usr\bin\pacman.exe -S --noconfirm autoconf automake libtool make pkg-config
-          echo "C:\msys64\usr\bin" >> $env:GITHUB_PATH
+        with:
+          msystem: MINGW64
+          update: false
+          install: autoconf automake libtool make pkg-config
+          path-type: inherit
 
       # --- Rust toolchain + caching ---
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
-      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: mozilla-actions/sccache-action@v0.0.10
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -80,7 +87,7 @@ jobs:
           sccache --version
 
       # --- Cached koko sidecar binary ---
-      # Bump the trailing version (koko-v1 → koko-v2) to force a rebuild
+      # Bump the trailing version (koko-v1 → koko-v2) to force a rebuild.
       - name: Cache koko binary
         id: koko-cache
         uses: actions/cache@v4
@@ -106,8 +113,6 @@ jobs:
         shell: pwsh
         env:
           RUSTC_WRAPPER: ""
-          # Static CRT: koko.exe must not depend on vcruntime140.dll at runtime.
-          RUSTFLAGS: "-C target-feature=+crt-static"
         run: |
           git clone --depth 1 https://github.com/lucasjinreal/Kokoros.git C:\kokoros
           cd C:\kokoros
@@ -144,7 +149,7 @@ jobs:
             -OutFile "src-tauri\resources\models\voices-v1.0.bin"
           Get-ChildItem "src-tauri\resources\models"
 
-      # Ensure resource dir exists — Tauri fails if a bundled resource path is missing
+      # Ensure resource dir exists — Tauri fails if a bundled resource path is missing.
       - name: Create resource dirs
         shell: bash
         run: mkdir -p src-tauri/resources/models
@@ -169,7 +174,7 @@ jobs:
           includeUpdaterJson: true
           args: ${{ matrix.args }}
 
-      # Print sccache stats so we can verify it worked
+      # Print sccache stats so we can verify it worked.
       - name: sccache stats
         if: always()
         shell: bash

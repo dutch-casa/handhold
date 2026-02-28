@@ -75,8 +75,7 @@ pub async fn pty_spawn(
     // Git Bash on Windows also supports --login to source .bash_profile.
     // Native Windows shells (cmd.exe, powershell) do not support this flag.
     if args.is_empty() {
-        let is_unix_shell = !cfg!(windows)
-            || shell_bin.to_ascii_lowercase().ends_with("bash.exe");
+        let is_unix_shell = !cfg!(windows) || shell_bin.to_ascii_lowercase().ends_with("bash.exe");
         if is_unix_shell {
             cmd.arg("--login");
         }
